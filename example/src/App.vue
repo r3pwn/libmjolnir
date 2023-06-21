@@ -1,19 +1,28 @@
 <script setup lang="ts">
-  import libmjolnir from 'libmjolnir';
+  import libmjolnir, { SamsungDevice } from 'libmjolnir';
+import { ref } from 'vue';
+
+  const hasDevice = ref(false);
+  const connectedDevice = ref({} as SamsungDevice);
 
   function requestDeviceAccess() {
     libmjolnir.helpers.requestDevice()
       .then(async device =>  {
-        console.log(device);
+        connectedDevice.value = device;
+        hasDevice.value = true;
+
         await device.initialize();
-        // await device.requestDeviceType();
-        setTimeout(() => {
-          device.reboot();
-        }, 5000);
       })
+  }
+
+  function rebootDevice() {
+    connectedDevice.value.reboot();
   }
 </script>
 
 <template>
   <button @click="requestDeviceAccess">Request device access</button>
+  <template v-if="hasDevice">
+    <button @click="rebootDevice">Reboot device</button>
+  </template>
 </template>
