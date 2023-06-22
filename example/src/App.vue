@@ -5,18 +5,29 @@ import { ref } from 'vue';
   const hasDevice = ref(false);
   const connectedDevice = ref({} as SamsungDevice);
 
-  function requestDeviceAccess() {
-    libmjolnir.helpers.requestDevice()
-      .then(async device =>  {
-        connectedDevice.value = device;
-        hasDevice.value = true;
+  async function setupDevice (device: SamsungDevice) {
+    connectedDevice.value = device;
+    hasDevice.value = true;
 
-        await device.initialize();
-      })
+    device.onDisconnect(() => {
+      hasDevice.value = false;
+      console.log('device was disconnected')
+    });
+
+    await device.initialize();
   }
 
-  function rebootDevice() {
+  function requestDeviceAccess () {
+    libmjolnir.requestDevice()
+      .then(setupDevice);
+  }
+
+  function rebootDevice () {
     connectedDevice.value.reboot();
+  }
+
+  async function requestDeviceType () {
+    await connectedDevice.value.requestDeviceType();
   }
 </script>
 
@@ -24,5 +35,6 @@ import { ref } from 'vue';
   <button @click="requestDeviceAccess">Request device access</button>
   <template v-if="hasDevice">
     <button @click="rebootDevice">Reboot device</button>
+    <button @click="requestDeviceType">Request device type</button>
   </template>
 </template>
