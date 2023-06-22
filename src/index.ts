@@ -1,12 +1,12 @@
 import { SamsungDevice } from './SamsungDevice';
-import * as helpers from './helpers';
+import { requestDevice } from './helpers';
 import * as libpit from './libpit';
 
 export {
-  SamsungDevice
+  SamsungDevice,
+  libpit
 };
 
 export default {
-  helpers,
-  libpit
+  requestDevice
 }

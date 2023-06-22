@@ -9,6 +9,6 @@ export class SessionSetupResponse extends ResponsePacket {
 
   async unpack () {
     await super.unpack();
-    this.result = this.unpackInteger(super.dataSize);
+    this.result = this.unpackInteger(ResponsePacket.dataSize);
   }
 }

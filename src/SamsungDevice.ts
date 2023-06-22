@@ -1,9 +1,14 @@
+import { PitData } from './libpit';
 import { InboundPacket } from './packets/inbound/InboundPacket';
+import { PitFileResponse } from './packets/inbound/PitFileResponse';
+import { ReceiveFilePartPacket } from './packets/inbound/ReceiveFilePartPacket';
 import { ResponsePacket, ResponseType } from './packets/inbound/ResponsePacket';
 import { SessionSetupResponse } from './packets/inbound/SessionSetupResponse';
 import { DeviceTypePacket } from './packets/outbound/DeviceTypePacket';
+import { DumpPartPitFilePacket } from './packets/outbound/DumpPartPitFilePacket';
 import { EndSessionPacket, EndSessionRequest } from './packets/outbound/EndSessionPacket';
 import { OutboundPacket } from './packets/outbound/OutboundPacket';
+import { PitFilePacket, PitFileRequest } from './packets/outbound/PitFilePacket';
 import { ByteArray } from './utils/ByteArray';
 
 const USB_CLASS_CDC_DATA = 0x0A;
@@ -17,34 +22,49 @@ export class SamsungDevice {
     this.usbDevice = usbDevice;
   }
 
+  onDisconnect (callback: () => void) {
+    const eventHandler = (event: USBConnectionEvent) => {
+      if (event.device === this.usbDevice) {
+        callback();
+        navigator.usb.removeEventListener('disconnect', eventHandler);
+      }
+    };
+    navigator.usb.addEventListener('disconnect', eventHandler);
+  }
+
   async initialize () {
-    await this.usbDevice.open();
-    
-    if (!this.usbDevice.configuration) {
-      await this.usbDevice.selectConfiguration(1);
+    try {
+      await this.usbDevice.open();
+      
+      if (!this.usbDevice.configuration) {
+        await this.usbDevice.selectConfiguration(1);
+      }
+
+      const interfaceNum = this.usbDevice.configuration?.interfaces.find(iface => 
+        iface.alternate.endpoints.length === 2 &&
+        iface.alternate.interfaceClass === USB_CLASS_CDC_DATA
+      )?.interfaceNumber ?? -1;
+
+      if (this.usbDevice.configuration == null || interfaceNum < 0) {
+        throw new Error('Unable to select the proper configuration');
+      }
+
+      const usbInterface = this.usbDevice.configuration.interfaces[interfaceNum];
+      const altEndpoints = usbInterface.alternate.endpoints;
+
+      this.outEndpointNum = altEndpoints.find(endpoint => endpoint.direction === 'out')?.endpointNumber || -1;
+      this.inEndpointNum = altEndpoints.find(endpoint => endpoint.direction === 'in')?.endpointNumber || -1;
+
+      if (this.outEndpointNum === -1 || this.inEndpointNum === -1) {
+        throw new Error('Unable to locate the bulk command endpoints');
+      }
+
+      await this.usbDevice.claimInterface(interfaceNum);
+      await this.usbDevice.selectAlternateInterface(interfaceNum, 0);
+    } catch (errorMsg) {
+      console.log(errorMsg);
+      throw new Error('Unable to open and claim device');
     }
-
-    const interfaceNum = this.usbDevice.configuration?.interfaces.find(iface => 
-      iface.alternate.endpoints.length === 2 &&
-      iface.alternate.interfaceClass === USB_CLASS_CDC_DATA
-    )?.interfaceNumber ?? -1;
-
-    if (this.usbDevice.configuration == null || interfaceNum < 0) {
-      throw new Error('Unable to select the proper configuration');
-    }
-
-    const usbInterface = this.usbDevice.configuration.interfaces[interfaceNum];
-    const altEndpoints = usbInterface.alternate.endpoints;
-
-    this.outEndpointNum = altEndpoints.find(endpoint => endpoint.direction === 'out')?.endpointNumber || -1;
-    this.inEndpointNum = altEndpoints.find(endpoint => endpoint.direction === 'in')?.endpointNumber || -1;
-
-    if (this.outEndpointNum === -1 || this.inEndpointNum === -1) {
-      throw new Error('Unable to locate the bulk command endpoints');
-    }
-
-    await this.usbDevice.claimInterface(interfaceNum);
-    await this.usbDevice.selectAlternateInterface(interfaceNum, 0);
 
     return this.handshake();
   }
@@ -91,11 +111,11 @@ export class SamsungDevice {
       throw new Error('receivePacket failed');
     }
 
-    if (data.data?.byteLength != packet.size && !packet.sizeVariable) {
+    if (data.data?.byteLength !== packet.size && !packet.sizeVariable) {
       throw new Error('incorrect size received');
     }
-    packet.data.set(new Uint8Array(data.data.buffer));
-    packet.receivedSize = packet.size;
+    packet.data = new Uint8Array(data.data.buffer);
+    packet.receivedSize = data.data.byteLength;
 
     packet.unpack();
   }
@@ -108,12 +128,50 @@ export class SamsungDevice {
   }
 
   async requestDeviceType () {
-    const packet = new DeviceTypePacket()
-    const result = await this.sendPacket(packet);
+    const result = await this.sendPacket(new DeviceTypePacket());
     console.log(result);
 
     const responsePacket = new SessionSetupResponse();
     await this.receivePacket(responsePacket);
     console.log(responsePacket);
+  }
+
+  async receivePitFile () {
+    await this.sendPacket(new PitFilePacket(PitFileRequest.Dump));
+
+    const dumpResponse = new PitFileResponse();
+    await this.receivePacket(dumpResponse);
+
+    const fileSize = dumpResponse.fileSize;
+
+    const transferCount = Math.ceil(fileSize / ReceiveFilePartPacket.dataSize);
+
+    const buffer = new ArrayBuffer(fileSize);
+    const fileData = new Uint8Array(buffer);
+    let offset = 0;
+
+    for (let i = 0; i < transferCount; i++) {
+      console.log(`receivePitFile: sending partial packet ${i+1} of ${transferCount}`);
+      await this.sendPacket(new DumpPartPitFilePacket(i));
+
+      // let receiveEmptyTransferFlags = (i === transferCount - 1) ? kEmptyTransferAfter : kEmptyTransferNone;
+      
+      const receivePitPartResponse = new ReceiveFilePartPacket();
+
+      await this.receivePacket(receivePitPartResponse);
+
+      // Copy all of the packet data into the buffer.
+      fileData.set(receivePitPartResponse.data, offset);
+      offset += receivePitPartResponse.receivedSize;
+    }
+    const pitData = new PitData();
+    pitData.unpack(fileData);
+    return pitData;
+    
+    // TODO - figure out why these calls hang
+    // await this.sendPacket(new PitFilePacket(PitFileRequest.EndTransfer));
+    
+    // const pitFileResponse = new PitFileResponse();
+    // await this.receivePacket(pitFileResponse);
   }
 }

@@ -16,6 +16,6 @@ export class EndSessionPacket extends ControlPacket {
   pack() {
     super.pack();
 
-    this.packInteger(super.dataSize, this.request);
+    this.packInteger(ControlPacket.dataSize, this.request);
   }
 }

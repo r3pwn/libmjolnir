@@ -16,7 +16,7 @@ export class ResponsePacket extends InboundPacket {
     this.responseType = responseType;
   }
 
-  get dataSize () { return 4; }
+  static get dataSize () { return 4; }
 
   async unpack () {
     const receivedResponseType = this.unpackInteger(0);

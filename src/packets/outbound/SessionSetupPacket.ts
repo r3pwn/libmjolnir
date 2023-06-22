@@ -18,10 +18,10 @@ export class SessionSetupPacket extends ControlPacket {
     this.request = request;
   }
 
-  get dataSize () { return super.dataSize + 4 }
+  static get dataSize () { return super.dataSize + 4 }
 
   pack () {
     super.pack();
-    this.packInteger(super.dataSize, this.request)
+    this.packInteger(ControlPacket.dataSize, this.request)
   }
 }

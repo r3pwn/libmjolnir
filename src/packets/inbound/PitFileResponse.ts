@@ -9,6 +9,6 @@ export class PitFileResponse extends ResponsePacket {
 
   async unpack () {
     await super.unpack();
-    this.fileSize = this.unpackInteger(super.dataSize);
+    this.fileSize = this.unpackInteger(ResponsePacket.dataSize);
   }
 }
