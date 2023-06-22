@@ -1,8 +1,9 @@
 <script setup lang="ts">
-  import libmjolnir, { SamsungDevice } from 'libmjolnir';
+  import libmjolnir, { SamsungDevice, libpit } from 'libmjolnir';
 import { ref } from 'vue';
 
   const hasDevice = ref(false);
+  const pitEntries = ref([] as libpit.PitEntry[]);
   const connectedDevice = ref({} as SamsungDevice);
 
   async function setupDevice (device: SamsungDevice) {
@@ -11,6 +12,7 @@ import { ref } from 'vue';
 
     device.onDisconnect(() => {
       hasDevice.value = false;
+      pitEntries.value = [];
       console.log('device was disconnected')
     });
 
@@ -29,12 +31,28 @@ import { ref } from 'vue';
   async function requestDeviceType () {
     await connectedDevice.value.requestDeviceType();
   }
+
+  async function receivePitFile () {
+    await connectedDevice.value.receivePitFile().then(pitData => {
+      pitEntries.value = pitData.entries;
+    });
+  }
 </script>
 
 <template>
   <button @click="requestDeviceAccess">Request device access</button>
-  <template v-if="hasDevice">
+  <p v-if="hasDevice">
     <button @click="rebootDevice">Reboot device</button>
     <button @click="requestDeviceType">Request device type</button>
-  </template>
+    <button @click="receivePitFile">Print PIT file</button>
+
+    <p v-if="pitEntries.length">
+      <p v-for="entry in pitEntries">
+        <div>partitionName: {{ entry.partitionName }}</div><br/>
+        <div>flashFileName: {{ entry.flashFilename }}</div><br/>
+        <div>blockSizeOrOffset: {{ entry.blockSizeOrOffset }}</div><br/>
+        <div>----------------------------------------------</div>
+      </p>
+    </p>
+  </p>
 </template>
