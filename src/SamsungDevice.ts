@@ -4,9 +4,11 @@ import { PitFileResponse } from './packets/inbound/PitFileResponse';
 import { ReceiveFilePartPacket } from './packets/inbound/ReceiveFilePartPacket';
 import { ResponsePacket, ResponseType } from './packets/inbound/ResponsePacket';
 import { SessionSetupResponse } from './packets/inbound/SessionSetupResponse';
+import { BeginSessionPacket } from './packets/outbound/BeginSessionPacket';
 import { DeviceTypePacket } from './packets/outbound/DeviceTypePacket';
 import { DumpPartPitFilePacket } from './packets/outbound/DumpPartPitFilePacket';
 import { EndSessionPacket, EndSessionRequest } from './packets/outbound/EndSessionPacket';
+import { FilePartSizePacket } from './packets/outbound/FilePartSizePacket';
 import { OutboundPacket } from './packets/outbound/OutboundPacket';
 import { PitFilePacket, PitFileRequest } from './packets/outbound/PitFilePacket';
 import { ByteArray } from './utils/ByteArray';
@@ -22,6 +24,9 @@ export class SamsungDevice {
   outEndpointNum = -1;
   inEndpointNum = -1;
   deviceOptions: DeviceOptions;
+
+  _fileTransferSequenceMaxLength = 800;
+	_fileTransferPacketSize = 131072;
 
   constructor (usbDevice: USBDevice, options?: DeviceOptions) {
     this.usbDevice = usbDevice;
@@ -140,12 +145,6 @@ export class SamsungDevice {
     await this.usbDevice.transferIn(this.inEndpointNum, 1);
   }
 
-  async reboot () {
-    await this.sendPacket(new EndSessionPacket(EndSessionRequest.RebootDevice));
-    const responsePacket = new ResponsePacket(ResponseType.EndSession);
-    await this.receivePacket(responsePacket);
-  }
-
   async requestDeviceType () {
     await this.sendPacket(new DeviceTypePacket());
 
@@ -153,7 +152,7 @@ export class SamsungDevice {
     await this.receivePacket(responsePacket);
   }
 
-  async receivePitFile () {
+  async getPitData () : Promise<PitData> {
     await this.sendPacket(new PitFilePacket(PitFileRequest.Dump));
 
     const dumpResponse = new PitFileResponse();
@@ -168,7 +167,7 @@ export class SamsungDevice {
     let offset = 0;
 
     for (let i = 0; i < transferCount; i++) {
-      console.log(`receivePitFile: sending partial packet ${i+1} of ${transferCount}`);
+      this.deviceOptions.logging && console.log(`receivePitFile: sending partial packet ${i+1} of ${transferCount}`);
       await this.sendPacket(new DumpPartPitFilePacket(i));
       
       const receivePitPartResponse = new ReceiveFilePartPacket();
@@ -179,6 +178,7 @@ export class SamsungDevice {
       fileData.set(receivePitPartResponse.data, offset);
       offset += receivePitPartResponse.receivedSize;
     }
+
     await this.emptyReceive();
     
     await this.sendPacket(new PitFilePacket(PitFileRequest.EndTransfer));
@@ -189,5 +189,42 @@ export class SamsungDevice {
     const pitData = new PitData();
     pitData.unpack(fileData);
     return pitData;
+  }
+  
+  async beginSession () {
+    await this.sendPacket(new BeginSessionPacket());
+    
+    const beginSessionResponse = new SessionSetupResponse();
+    await this.receivePacket(beginSessionResponse);
+
+    const defaultPacketSize = beginSessionResponse.result;
+
+    // 0 means changing the packet size is not supported.
+    if (defaultPacketSize === 0) {
+      return;
+    }
+
+    this._fileTransferPacketSize = 1048576; // 1 MiB
+		this._fileTransferSequenceMaxLength = 30; // Therefore, packetSize * sequenceMaxLength == 30 MiB per sequence.
+
+    await this.sendPacket(new FilePartSizePacket(this._fileTransferPacketSize))
+
+    const filePartSizeResponse = new SessionSetupResponse();
+
+		await this.receivePacket(filePartSizeResponse);
+
+    if (filePartSizeResponse.result !== 0) {
+			throw new Error(`Unexpected file part size response!, Expected: 0, Received: ${filePartSizeResponse.result}`);
+		}
+  }
+
+  async endSession (reboot?: boolean) {
+    await this.sendPacket(new EndSessionPacket(reboot ? EndSessionRequest.RebootDevice : EndSessionRequest.EndSession));
+    const responsePacket = new ResponsePacket(ResponseType.EndSession);
+    await this.receivePacket(responsePacket);
+  }
+
+  async reboot () {
+    await this.endSession(true);
   }
 }
