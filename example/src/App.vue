@@ -17,8 +17,6 @@ import { ref } from 'vue';
       pitEntries.value = [];
       console.log('device was disconnected')
     });
-
-    window.device = device;
   }
 
   function requestDeviceAccess () {
