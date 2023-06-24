@@ -13,13 +13,26 @@ import { ByteArray } from './utils/ByteArray';
 
 const USB_CLASS_CDC_DATA = 0x0A;
 
+export type DeviceOptions = {
+  logging: boolean;
+}
+
 export class SamsungDevice {
   usbDevice: USBDevice;
   outEndpointNum = -1;
   inEndpointNum = -1;
+  deviceOptions: DeviceOptions;
 
-  constructor (usbDevice: USBDevice) {
+  constructor (usbDevice: USBDevice, options?: DeviceOptions) {
     this.usbDevice = usbDevice;
+
+    if (!options) {
+      this.deviceOptions = {
+        logging: false
+      };
+    } else {
+      this.deviceOptions = options;
+    }
   }
 
   onDisconnect (callback: () => void) {
@@ -75,7 +88,7 @@ export class SamsungDevice {
     const acknowledgeMsg = 'LOKE';
 
     const outResult = await this.usbDevice.transferOut(this.outEndpointNum, ByteArray.fromString(helloMsg));
-    console.log(`sent: ${helloMsg}, status: ${outResult.status}`);
+    this.deviceOptions.logging && console.log(`sent: ${helloMsg}, status: ${outResult.status}`);
     if (outResult.status !== 'ok') {
       throw new Error(`handshake transmit status ${outResult.status}`);
     }
@@ -87,7 +100,7 @@ export class SamsungDevice {
 
     const stringResult = ByteArray.toString(new Uint8Array(inResult.data.buffer));
 
-    console.log(`received: ${stringResult}`)
+    this.deviceOptions.logging && console.log(`received: ${stringResult}`)
     if (stringResult !== acknowledgeMsg) {
       throw new Error('handshake challenge mismatch');
     }
@@ -100,16 +113,15 @@ export class SamsungDevice {
   async sendPacket (packet: OutboundPacket) {
     packet.pack();
     return this.usbDevice.transferOut(this.outEndpointNum, packet.data)
-      .then(result => { console.log(result); return result; });
-  }
-
-  async emptyReceive () {
-    await this.usbDevice.transferIn(this.inEndpointNum, 1);
+      .then(result => {
+        this.deviceOptions.logging && console.log('sendPacket', result);
+        return result;
+      });
   }
 
   async receivePacket (packet: InboundPacket) {
     const data = await this.usbDevice.transferIn(this.inEndpointNum, packet.size);
-    console.log(data);
+    this.deviceOptions.logging && console.log('receivePacket', data);
 
     if (data.data == null || data.status !== 'ok') {
       throw new Error('receivePacket failed');
@@ -123,12 +135,15 @@ export class SamsungDevice {
 
     packet.unpack();
   }
+  
+  async emptyReceive () {
+    await this.usbDevice.transferIn(this.inEndpointNum, 1);
+  }
 
   async reboot () {
     await this.sendPacket(new EndSessionPacket(EndSessionRequest.RebootDevice));
     const responsePacket = new ResponsePacket(ResponseType.EndSession);
     await this.receivePacket(responsePacket);
-    console.log(responsePacket);
   }
 
   async requestDeviceType () {
@@ -136,7 +151,6 @@ export class SamsungDevice {
 
     const responsePacket = new SessionSetupResponse();
     await this.receivePacket(responsePacket);
-    console.log(responsePacket);
   }
 
   async receivePitFile () {
