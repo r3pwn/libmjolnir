@@ -103,6 +103,10 @@ export class SamsungDevice {
       .then(result => { console.log(result); return result; });
   }
 
+  async emptyReceive () {
+    await this.usbDevice.transferIn(this.inEndpointNum, 1);
+  }
+
   async receivePacket (packet: InboundPacket) {
     const data = await this.usbDevice.transferIn(this.inEndpointNum, packet.size);
     console.log(data);
@@ -128,8 +132,7 @@ export class SamsungDevice {
   }
 
   async requestDeviceType () {
-    const result = await this.sendPacket(new DeviceTypePacket());
-    console.log(result);
+    await this.sendPacket(new DeviceTypePacket());
 
     const responsePacket = new SessionSetupResponse();
     await this.receivePacket(responsePacket);
@@ -153,8 +156,6 @@ export class SamsungDevice {
     for (let i = 0; i < transferCount; i++) {
       console.log(`receivePitFile: sending partial packet ${i+1} of ${transferCount}`);
       await this.sendPacket(new DumpPartPitFilePacket(i));
-
-      // let receiveEmptyTransferFlags = (i === transferCount - 1) ? kEmptyTransferAfter : kEmptyTransferNone;
       
       const receivePitPartResponse = new ReceiveFilePartPacket();
 
@@ -164,14 +165,15 @@ export class SamsungDevice {
       fileData.set(receivePitPartResponse.data, offset);
       offset += receivePitPartResponse.receivedSize;
     }
+    await this.emptyReceive();
+    
+    await this.sendPacket(new PitFilePacket(PitFileRequest.EndTransfer));
+    
+    const pitFileResponse = new PitFileResponse();
+    await this.receivePacket(pitFileResponse);
+
     const pitData = new PitData();
     pitData.unpack(fileData);
     return pitData;
-    
-    // TODO - figure out why these calls hang
-    // await this.sendPacket(new PitFilePacket(PitFileRequest.EndTransfer));
-    
-    // const pitFileResponse = new PitFileResponse();
-    // await this.receivePacket(pitFileResponse);
   }
 }
