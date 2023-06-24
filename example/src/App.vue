@@ -7,6 +7,8 @@ import { ref } from 'vue';
   const connectedDevice = ref({} as SamsungDevice);
 
   async function setupDevice (device: SamsungDevice) {
+    await device.initialize();
+
     connectedDevice.value = device;
     hasDevice.value = true;
 
@@ -16,11 +18,11 @@ import { ref } from 'vue';
       console.log('device was disconnected')
     });
 
-    await device.initialize();
+    window.device = device;
   }
 
   function requestDeviceAccess () {
-    libmjolnir.requestDevice()
+    libmjolnir.requestDevice({ logging: true })
       .then(setupDevice);
   }
 
@@ -33,7 +35,7 @@ import { ref } from 'vue';
   }
 
   async function receivePitFile () {
-    await connectedDevice.value.receivePitFile().then(pitData => {
+    await connectedDevice.value.getPitData().then(pitData => {
       pitEntries.value = pitData.entries;
     });
   }
