@@ -3,14 +3,21 @@ import { InboundPacket } from './packets/inbound/InboundPacket';
 import { PitFileResponse } from './packets/inbound/PitFileResponse';
 import { ReceiveFilePartPacket } from './packets/inbound/ReceiveFilePartPacket';
 import { ResponsePacket, ResponseType } from './packets/inbound/ResponsePacket';
+import { SendFilePartResponse } from './packets/inbound/SendFilePartResponse';
 import { SessionSetupResponse } from './packets/inbound/SessionSetupResponse';
 import { BeginSessionPacket } from './packets/outbound/BeginSessionPacket';
 import { DeviceTypePacket } from './packets/outbound/DeviceTypePacket';
 import { DumpPartPitFilePacket } from './packets/outbound/DumpPartPitFilePacket';
+import { FileTransferDestination } from './packets/outbound/EndFileTransferPacket';
+import { EndModemFileTransferPacket } from './packets/outbound/EndModemFileTransferPacket';
+import { EndPhoneFileTransferPacket } from './packets/outbound/EndPhoneFileTransferPacket';
 import { EndSessionPacket, EndSessionRequest } from './packets/outbound/EndSessionPacket';
 import { FilePartSizePacket } from './packets/outbound/FilePartSizePacket';
+import { FileTransferPacket, FileTransferRequest } from './packets/outbound/FileTransferPacket';
+import { FlashPartFileTransferPacket } from './packets/outbound/FlashPartFileTransferPacket';
 import { OutboundPacket } from './packets/outbound/OutboundPacket';
 import { PitFilePacket, PitFileRequest } from './packets/outbound/PitFilePacket';
+import { SendFilePartPacket } from './packets/outbound/SendFilePartPacket';
 import { ByteArray } from './utils/ByteArray';
 
 const USB_CLASS_CDC_DATA = 0x0A;
@@ -141,8 +148,12 @@ export class SamsungDevice {
     packet.unpack();
   }
   
-  async emptyReceive () {
+  async _emptyReceive () {
     await this.usbDevice.transferIn(this.inEndpointNum, 1);
+  }
+
+  async _emptySend () {
+    await this.usbDevice.transferOut(this.inEndpointNum, new Uint8Array());
   }
 
   async requestDeviceType () {
@@ -179,7 +190,7 @@ export class SamsungDevice {
       offset += receivePitPartResponse.receivedSize;
     }
 
-    await this.emptyReceive();
+    await this._emptyReceive();
     
     await this.sendPacket(new PitFilePacket(PitFileRequest.EndTransfer));
     
@@ -226,5 +237,86 @@ export class SamsungDevice {
 
   async reboot () {
     await this.endSession(true);
+  }
+
+  async sendFile(fileData: Uint8Array, destination: FileTransferDestination, deviceType: number, fileIdentifier: number) {
+    if (destination === FileTransferDestination.Modem && !fileIdentifier) {
+      throw new Error('The modem file does not have an identifier!');
+    }
+
+    await this.sendPacket(new FileTransferPacket(FileTransferRequest.Flash));
+
+    const fileSize = fileData.length;
+
+    let fileTransferResponse = new ResponsePacket(ResponseType.FileTransfer);
+    await this.receivePacket(fileTransferResponse);
+
+    let sequenceCount = fileSize / (this._fileTransferSequenceMaxLength * this._fileTransferPacketSize);
+    let lastSequenceSize = this._fileTransferSequenceMaxLength;
+    const partialPacketByteCount = fileSize % this._fileTransferPacketSize;
+
+    if (fileSize % (this._fileTransferSequenceMaxLength * this._fileTransferPacketSize) != 0)
+    {
+      sequenceCount++;
+  
+      const lastSequenceBytes = fileSize % (this._fileTransferSequenceMaxLength * this._fileTransferPacketSize);
+      lastSequenceSize = lastSequenceBytes / this._fileTransferPacketSize;
+  
+      if (partialPacketByteCount !== 0) {
+        lastSequenceSize++;
+      }
+    }
+
+    let bytesTransferred = 0;
+
+    for (let sequenceIndex = 0; sequenceIndex < sequenceCount; sequenceIndex++) {
+      const isLastSequence = (sequenceIndex == sequenceCount - 1);
+      const sequenceSize = (isLastSequence) ? lastSequenceSize : this._fileTransferSequenceMaxLength;
+      const sequenceTotalByteCount = sequenceSize * this._fileTransferPacketSize;
+
+      await this.sendPacket(new FlashPartFileTransferPacket(sequenceTotalByteCount));
+
+      await this.receivePacket(new ResponsePacket(ResponseType.FileTransfer));
+
+      for (let filePartIndex = 0; filePartIndex < sequenceSize; filePartIndex++) {
+        if (filePartIndex !== 0) {
+          await this._emptyReceive();
+        }
+
+        await this.sendPacket(new SendFilePartPacket(fileData, this._fileTransferPacketSize));
+
+        const sendFilePartResponse = new SendFilePartResponse();
+        await this.receivePacket(sendFilePartResponse);
+        
+        const receivedPartIndex = sendFilePartResponse.partIndex;
+
+        if (receivedPartIndex != filePartIndex) {
+          throw new Error(`Expected file part index: ${filePartIndex} Received: ${receivedPartIndex}`);
+        }
+
+        bytesTransferred += this._fileTransferPacketSize;
+
+        if (bytesTransferred > fileSize) {
+          bytesTransferred = fileSize;
+        }
+      }
+
+      const sequenceEffectiveByteCount = (isLastSequence && partialPacketByteCount != 0) ?
+        this._fileTransferPacketSize * (lastSequenceSize - 1) + partialPacketByteCount : sequenceTotalByteCount;
+
+      if (destination === FileTransferDestination.Phone)
+      {
+        await this._emptySend();
+        await this.sendPacket(new EndPhoneFileTransferPacket(sequenceEffectiveByteCount, 0, deviceType, fileIdentifier, isLastSequence));
+        await this._emptySend();
+      } else {
+        await this._emptySend();
+        await this.sendPacket(new EndModemFileTransferPacket(sequenceEffectiveByteCount, 0, deviceType, isLastSequence));
+        await this._emptySend();
+      }
+    }
+
+    fileTransferResponse = new ResponsePacket(ResponseType.FileTransfer);
+		await this.receivePacket(fileTransferResponse);
   }
 }

@@ -15,9 +15,9 @@ export class ControlPacket extends OutboundPacket {
     this.controlType = controlType;
   }
 
+  static get dataSize () { return 4 }
+
   pack () {
     this.packInteger(0, this.controlType);
   }
-
-  static get dataSize () { return 4 }
 }
