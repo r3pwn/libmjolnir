@@ -156,15 +156,22 @@ export class SamsungDevice {
 
   async sendPacket (packet: OutboundPacket) {
     packet.pack();
-    return this.usbDevice.transferOut(this.outEndpointNum, packet.data)
-      .then(result => {
-        this.deviceOptions.logging && console.log('sendPacket', result);
-        return result;
-      });
+    return await timeoutPromise(
+      this.usbDevice.transferOut(this.outEndpointNum, packet.data),
+      '[device] unable to send packet',
+      this.deviceOptions.timeout
+    ).then(result => {
+      this.deviceOptions.logging && console.log('sendPacket', result);
+      return result;
+    });
   }
 
   async receivePacket (packet: InboundPacket) {
-    const data = await this.usbDevice.transferIn(this.inEndpointNum, packet.size);
+    const data = await timeoutPromise(
+      this.usbDevice.transferIn(this.inEndpointNum, packet.size),
+      '[device] unable to receive packet from device',
+      this.deviceOptions.timeout
+    )
     this.deviceOptions.logging && console.log('receivePacket', data);
 
     if (data.data == null || data.status !== 'ok') {
