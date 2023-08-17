@@ -4,9 +4,9 @@ import { PitData } from '../../src/libpit/PitData';
 const SAMPLES_DIR = 'tests/libpit/samples';
 
 function getFileAsByteArray(filePath: string) {
-  let fileData = fs.readFileSync(filePath, 'binary');
+  const fileData = fs.readFileSync(filePath, 'binary');
 
-  let bytes = [] as number[];
+  const bytes = [] as number[];
   for(let i = 0; i < fileData.length; i++) {
     bytes.push(fileData.charCodeAt(i) & 0xFF);
   }
@@ -15,11 +15,11 @@ function getFileAsByteArray(filePath: string) {
 }
 
 test('unpacks and re-packs a PIT file', () => {
-  let bytes = getFileAsByteArray(`${SAMPLES_DIR}/i9100-stock-sample.pit`);
+  const bytes = getFileAsByteArray(`${SAMPLES_DIR}/i9100-stock-sample.pit`);
   // clone the bytes array so we can compare it later
-  let unpackBytes = bytes.slice();
+  const unpackBytes = bytes.slice();
 
-  let data = new PitData();
+  const data = new PitData();
   // unpack the data, check for success
   expect(data.unpack(bytes)).toBe(true);
 
