@@ -19,12 +19,19 @@ import { OutboundPacket } from './packets/outbound/OutboundPacket';
 import { PitFilePacket, PitFileRequest } from './packets/outbound/PitFilePacket';
 import { SendFilePartPacket } from './packets/outbound/SendFilePartPacket';
 import { ByteArray } from './utils/ByteArray';
-
-const USB_CLASS_CDC_DATA = 0x0A;
+import { timeoutPromise } from './utils/timeoutPromise';
 
 export type DeviceOptions = {
   logging: boolean;
+  timeout: number;
 }
+
+const USB_CLASS_CDC_DATA = 0x0A;
+
+const DEFAULT_DEVICE_OPTIONS = {
+  logging: true,
+  timeout: 5000
+} as DeviceOptions;
 
 export class SamsungDevice {
   usbDevice: USBDevice;
@@ -35,15 +42,12 @@ export class SamsungDevice {
   _fileTransferSequenceMaxLength = 800;
 	_fileTransferPacketSize = 131072;
 
-  constructor (usbDevice: USBDevice, options?: DeviceOptions) {
+  constructor (usbDevice: USBDevice, options?: Partial<DeviceOptions>) {
     this.usbDevice = usbDevice;
+    this.deviceOptions = DEFAULT_DEVICE_OPTIONS;
 
-    if (!options) {
-      this.deviceOptions = {
-        logging: false
-      };
-    } else {
-      this.deviceOptions = options;
+    if (options) {
+      this.deviceOptions = Object.assign(DEFAULT_DEVICE_OPTIONS, options);
     }
   }
 
@@ -59,10 +63,18 @@ export class SamsungDevice {
 
   async initialize () {
     try {
-      await this.usbDevice.open();
+      await timeoutPromise(
+        this.usbDevice.open(),
+        '[initialize] unable to open device handle',
+        this.deviceOptions.timeout
+      );
       
       if (!this.usbDevice.configuration) {
-        await this.usbDevice.selectConfiguration(1);
+        await timeoutPromise(
+          this.usbDevice.selectConfiguration(1),
+          '[initialize] unable to select device configuration',
+          this.deviceOptions.timeout
+        );
       }
 
       const interfaceNum = this.usbDevice.configuration?.interfaces.find(iface => 
@@ -84,10 +96,18 @@ export class SamsungDevice {
         throw new Error('Unable to locate the bulk command endpoints');
       }
 
-      await this.usbDevice.claimInterface(interfaceNum);
-      await this.usbDevice.selectAlternateInterface(interfaceNum, 0);
+      await timeoutPromise(
+        this.usbDevice.claimInterface(interfaceNum),
+        '[initialize] unable to claim device interface',
+        this.deviceOptions.timeout
+      );
+      await timeoutPromise(
+        this.usbDevice.selectAlternateInterface(interfaceNum, 0),
+        '[initialize] unable to select device\'s ODIN interface',
+        this.deviceOptions.timeout
+      );
     } catch (errorMsg) {
-      console.log(errorMsg);
+      this.deviceOptions.logging && console.log(errorMsg);
       throw new Error('Unable to open and claim device');
     }
 
@@ -99,13 +119,21 @@ export class SamsungDevice {
     const helloMsg = 'ODIN';
     const acknowledgeMsg = 'LOKE';
 
-    const outResult = await this.usbDevice.transferOut(this.outEndpointNum, ByteArray.fromString(helloMsg));
+    const outResult = await timeoutPromise(
+      this.usbDevice.transferOut(this.outEndpointNum, ByteArray.fromString(helloMsg)),
+      '[handshake] unable to send ODIN handshake',
+      this.deviceOptions.timeout
+    );
     this.deviceOptions.logging && console.log(`sent: ${helloMsg}, status: ${outResult.status}`);
     if (outResult.status !== 'ok') {
       throw new Error(`handshake transmit status ${outResult.status}`);
     }
 
-    const inResult = await this.usbDevice.transferIn(this.inEndpointNum, 7);
+    const inResult = await timeoutPromise(
+      this.usbDevice.transferIn(this.inEndpointNum, 7),
+      '[handshake] unable to receive ODIN handshake response',
+      this.deviceOptions.timeout
+    );
     if (inResult.data == null || inResult.status !== 'ok') {
       throw new Error(`handshake response status ${inResult.status}`);
     }
@@ -119,7 +147,11 @@ export class SamsungDevice {
   }
 
   async close () {
-    await this.usbDevice.close();
+    await timeoutPromise(
+      this.usbDevice.close(),
+      '[close] unable to close device',
+      this.deviceOptions.timeout
+    );
   }
 
   async sendPacket (packet: OutboundPacket) {
@@ -149,11 +181,19 @@ export class SamsungDevice {
   }
   
   async _emptyReceive () {
-    await this.usbDevice.transferIn(this.inEndpointNum, 1);
+    await timeoutPromise(
+      this.usbDevice.transferIn(this.inEndpointNum, 1),
+      '[device] device did not respond to empty receive',
+      this.deviceOptions.timeout
+    );
   }
 
   async _emptySend () {
-    await this.usbDevice.transferOut(this.inEndpointNum, new Uint8Array());
+    await timeoutPromise(
+      this.usbDevice.transferOut(this.inEndpointNum, new Uint8Array()),
+      '[device] device did not respond to empty send',
+      this.deviceOptions.timeout
+    );
   }
 
   async requestDeviceType () {

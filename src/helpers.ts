@@ -1,7 +1,7 @@
 import { DeviceOptions, SamsungDevice } from './SamsungDevice';
 import constants from './constants';
 
-export const requestDevice = async function (options?: DeviceOptions) {
+export const requestDevice = async function (options?: Partial<DeviceOptions>) {
   if (!navigator.usb) {
     return Promise.reject('Browser missing WebUSB feature');
   }
