@@ -1,5 +1,5 @@
 import { requestDevice } from '../src/helpers';
-import { mockEmptyNavigator, mockUnavailableWebUsb, mockWebUsb } from './jest-utils/usbMocks';
+import { mockEmptyNavigator, mockUnavailableWebUsb, mockUsbDevice, mockWebUsb } from './jest-utils/usbMocks';
 
 describe('requestDevice', () => {
   beforeAll(() => {
@@ -15,8 +15,7 @@ describe('requestDevice', () => {
   test('returns a device after one is connected and selected', async () => {
     const { requestDeviceMock } = mockWebUsb()
 
-    // todo - use mock device instead of null
-    requestDeviceMock.mockResolvedValue(null);
+    requestDeviceMock.mockResolvedValue(mockUsbDevice());
 
     await expect(requestDevice()).resolves.toBeTruthy();
   });

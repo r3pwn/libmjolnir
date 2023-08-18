@@ -25,3 +25,23 @@ export const mockWebUsb = () => {
 
   return { requestDeviceMock };
 };
+
+export const mockUsbDevice = () => {
+  const open = jest.fn();
+  const selectConfiguration = jest.fn();
+  const claimInterface = jest.fn();
+  const selectAlternateInterface = jest.fn();
+  const transferOut = jest.fn();
+  const transferIn = jest.fn();
+  const close = jest.fn();
+
+  return {
+    open,
+    selectConfiguration,
+    claimInterface,
+    selectAlternateInterface,
+    transferOut,
+    transferIn,
+    close
+  };
+}
