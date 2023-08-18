@@ -325,9 +325,10 @@ he@^1.2.0:
   resolved "https://registry.yarnpkg.com/he/-/he-1.2.0.tgz#84ae65fa7eafb165fddb61566ae14baf05664f0f"
   integrity sha512-F/1DnUGPopORZi0ni+CvrCgHQ5FyEAHRLSApuYWMmrbSwoN2Mn/7k+Gl38gJnR7yyDZk6WLXwiGod1JOWNDKGw==
 
-"libmjolnir@link:..":
-  version "0.0.0"
-  uid ""
+libmjolnir@latest:
+  version "0.1.3"
+  resolved "https://registry.yarnpkg.com/libmjolnir/-/libmjolnir-0.1.3.tgz#bfb5ffd8ae06c24b7c7497442aa452ce5f9abeb0"
+  integrity sha512-CcoggoNWAeJZ5A9YRApFBPmDrlplNzK0xg6fHK4VYRfFLA6GM6Bc1oYaD9ER9dTcncOdfCpTg+aQmMOWrJLW5A==
 
 lru-cache@^6.0.0:
   version "6.0.0"
