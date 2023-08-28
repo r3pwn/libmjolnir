@@ -331,9 +331,9 @@ he@^1.2.0:
   integrity sha512-F/1DnUGPopORZi0ni+CvrCgHQ5FyEAHRLSApuYWMmrbSwoN2Mn/7k+Gl38gJnR7yyDZk6WLXwiGod1JOWNDKGw==
 
 libmjolnir@latest:
-  version "0.2.0-3"
-  resolved "https://registry.yarnpkg.com/libmjolnir/-/libmjolnir-0.2.0-3.tgz#d330415e87b0a8a853a313828787af7b123ec7a5"
-  integrity sha512-BqmqaS4qn+FGdci2Jbf54hMnom2P1N1R80gQ+FXZDKWlJkdMRgRi8uKcDT9rzVgRQ3B6izcUXrTUVg5omQxPAQ==
+  version "0.3.0-1"
+  resolved "https://registry.yarnpkg.com/libmjolnir/-/libmjolnir-0.3.0-1.tgz#7006edc9f88bf16bf200f068626f99242237b883"
+  integrity sha512-Fx+odNZMNazEHcbg6UoeZWhmX/lGSsgy3fn1w5POWJZDPAh/2Exy1MaH1gIwh7KUbhbtHYTktEM8yy7iGmh9pw==
 
 lru-cache@^6.0.0:
   version "6.0.0"

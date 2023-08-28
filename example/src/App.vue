@@ -2,6 +2,9 @@
   import { ref } from 'vue';
   import libmjolnir, { OdinDevice, libpit } from 'libmjolnir';
 
+  // allowlist for erasable partitions to avoid letting a user mess up their device
+  const ALLOW_ERASE = ['cache', 'userdata'];
+
   const hasDevice = ref(false);
   const pitEntries = ref([] as libpit.PitEntry[]);
   const connectedDevice = ref({} as OdinDevice);
@@ -20,7 +23,7 @@
   }
 
   function requestDeviceAccess () {
-    libmjolnir.requestDevice({ logging: true })
+    libmjolnir.requestDevice({ logging: true, timeout: 15000 })
       .then(setupDevice);
   }
 
@@ -37,9 +40,14 @@
   }
 
   async function receivePitFile () {
-    await connectedDevice.value.getPitData().then(pitData => {
+    await connectedDevice.value.getPitData().then((pitData) => {
+      console.log(pitData);
       pitEntries.value = pitData.entries;
     });
+  }
+
+  async function erasePartition (partitionName: string) {
+    await connectedDevice.value.erasePartition(partitionName);
   }
 </script>
 
@@ -57,6 +65,12 @@
         <div>identifier: {{ entry.identifier }}</div>
         <div>flashFileName: {{ entry.flashFilename }}</div>
         <div>blockSizeOrOffset: {{ entry.blockSizeOrOffset }}</div>
+        <button 
+          v-if="entry.isFlashable() && ALLOW_ERASE.includes(entry.partitionName.toLowerCase())"
+          @click="erasePartition(entry.partitionName)"
+        >
+          Erase
+        </button>
         <div>----------------------------------------------</div>
       </p>
     </p>
