@@ -1,4 +1,4 @@
-import { DeviceOptions, SamsungDevice } from './SamsungDevice';
+import { DeviceOptions, OdinDevice } from './OdinDevice';
 import constants from './constants';
 
 export const requestDevice = async function (options?: Partial<DeviceOptions>) {
@@ -7,6 +7,6 @@ export const requestDevice = async function (options?: Partial<DeviceOptions>) {
   }
   return navigator.usb.requestDevice({ filters: constants.UsbConstants.DeviceFilters })
   .then(device => {
-    return new SamsungDevice(device, options);
+    return new OdinDevice(device, options);
   });
 };

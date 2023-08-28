@@ -1,9 +1,9 @@
-import { DeviceOptions, SamsungDevice } from './SamsungDevice';
+import { DeviceOptions, OdinDevice } from './OdinDevice';
 import { requestDevice } from './helpers';
 import * as libpit from './libpit';
 
 export {
-  DeviceOptions, SamsungDevice, libpit
+  DeviceOptions, OdinDevice, libpit
 };
 
 export default {

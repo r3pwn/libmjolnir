@@ -37,7 +37,7 @@ const DEFAULT_DEVICE_OPTIONS = {
   timeout: 5000
 } as DeviceOptions;
 
-export class SamsungDevice {
+export class OdinDevice {
   usbDevice: USBDevice;
   outEndpointNum = -1;
   inEndpointNum = -1;
@@ -193,7 +193,6 @@ export class SamsungDevice {
 
     packet.unpack();
   }
-  
   
   async _emptySend (options?: EmptyPacketOptions) {
     await timeoutPromise(
