@@ -1,6 +1,6 @@
 <script setup lang="ts">
+  import { ref } from 'vue';
   import libmjolnir, { OdinDevice, libpit } from 'libmjolnir';
-import { ref } from 'vue';
 
   const hasDevice = ref(false);
   const pitEntries = ref([] as libpit.PitEntry[]);
@@ -62,3 +62,11 @@ import { ref } from 'vue';
     </p>
   </p>
 </template>
+
+<style>
+  @media (prefers-color-scheme: dark) {
+    html {
+      color-scheme: dark;
+    }
+  }
+</style>
