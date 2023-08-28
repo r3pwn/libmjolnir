@@ -225,7 +225,7 @@ export class SamsungDevice {
     let offset = 0;
 
     for (let i = 0; i < transferCount; i++) {
-      this.deviceOptions.logging && console.log(`receivePitFile: sending partial packet ${i+1} of ${transferCount}`);
+      this.deviceOptions.logging && console.log(`getPitData: sending partial packet ${i+1} of ${transferCount}`);
       await this.sendPacket(new DumpPartPitFilePacket(i));
       
       const receivePitPartResponse = new ReceiveFilePartPacket();
@@ -237,7 +237,11 @@ export class SamsungDevice {
       offset += receivePitPartResponse.receivedSize;
     }
 
-    await this._emptyReceive();
+    try {
+      await this._emptyReceive();
+    } catch {
+      console.log('getPitData: empty receive failed, continuing anyways')
+    }
     
     await this.sendPacket(new PitFilePacket(PitFileRequest.EndTransfer));
     
