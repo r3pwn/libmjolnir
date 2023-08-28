@@ -26,6 +26,10 @@ export type DeviceOptions = {
   timeout: number;
 }
 
+export type EmptyPacketOptions = {
+  timeout?: number;
+}
+
 const USB_CLASS_CDC_DATA = 0x0A;
 
 const DEFAULT_DEVICE_OPTIONS = {
@@ -190,19 +194,20 @@ export class SamsungDevice {
     packet.unpack();
   }
   
-  async _emptyReceive () {
-    await timeoutPromise(
-      this.usbDevice.transferIn(this.inEndpointNum, 1),
-      '[device] device did not respond to empty receive',
-      this.deviceOptions.timeout
-    );
-  }
-
-  async _emptySend () {
+  
+  async _emptySend (options?: EmptyPacketOptions) {
     await timeoutPromise(
       this.usbDevice.transferOut(this.inEndpointNum, new Uint8Array()),
       '[device] device did not respond to empty send',
-      this.deviceOptions.timeout
+      options?.timeout ?? this.deviceOptions.timeout
+    );
+  }
+    
+  async _emptyReceive (options?: EmptyPacketOptions) {
+    await timeoutPromise(
+      this.usbDevice.transferIn(this.inEndpointNum, 1),
+      '[device] device did not respond to empty receive',
+      options?.timeout ?? this.deviceOptions.timeout
     );
   }
 
@@ -211,49 +216,6 @@ export class SamsungDevice {
 
     const responsePacket = new SessionSetupResponse();
     await this.receivePacket(responsePacket);
-  }
-
-  async getPitData () : Promise<PitData> {
-    await this.sendPacket(new PitFilePacket(PitFileRequest.Dump));
-
-    const dumpResponse = new PitFileResponse();
-    await this.receivePacket(dumpResponse);
-
-    const fileSize = dumpResponse.fileSize;
-
-    const transferCount = Math.ceil(fileSize / ReceiveFilePartPacket.dataSize);
-
-    const buffer = new ArrayBuffer(fileSize);
-    const fileData = new Uint8Array(buffer);
-    let offset = 0;
-
-    for (let i = 0; i < transferCount; i++) {
-      this.deviceOptions.logging && console.log(`getPitData: sending partial packet ${i+1} of ${transferCount}`);
-      await this.sendPacket(new DumpPartPitFilePacket(i));
-      
-      const receivePitPartResponse = new ReceiveFilePartPacket();
-
-      await this.receivePacket(receivePitPartResponse);
-
-      // Copy all of the packet data into the buffer.
-      fileData.set(receivePitPartResponse.data, offset);
-      offset += receivePitPartResponse.receivedSize;
-    }
-
-    try {
-      await this._emptyReceive();
-    } catch {
-      console.info('getPitData: empty receive failed, continuing anyways')
-    }
-    
-    await this.sendPacket(new PitFilePacket(PitFileRequest.EndTransfer));
-    
-    const pitFileResponse = new PitFileResponse();
-    await this.receivePacket(pitFileResponse);
-
-    const pitData = new PitData();
-    pitData.unpack(fileData);
-    return pitData;
   }
   
   async beginSession () {
@@ -291,6 +253,53 @@ export class SamsungDevice {
 
   async reboot () {
     await this.endSession(true);
+  }
+  
+  async getPitData () : Promise<PitData> {
+    await this.sendPacket(new PitFilePacket(PitFileRequest.Dump));
+
+    const dumpResponse = new PitFileResponse();
+    await this.receivePacket(dumpResponse);
+
+    const fileSize = dumpResponse.fileSize;
+
+    const transferCount = Math.ceil(fileSize / ReceiveFilePartPacket.dataSize);
+
+    const buffer = new ArrayBuffer(fileSize);
+    const fileData = new Uint8Array(buffer);
+    let offset = 0;
+
+    for (let i = 0; i < transferCount; i++) {
+      this.deviceOptions.logging && console.log(`getPitData: sending partial packet ${i+1} of ${transferCount}`);
+      await this.sendPacket(new DumpPartPitFilePacket(i));
+      
+      const receivePitPartResponse = new ReceiveFilePartPacket();
+
+      await this.receivePacket(receivePitPartResponse);
+
+      // Copy all of the packet data into the buffer.
+      fileData.set(receivePitPartResponse.data, offset);
+      offset += receivePitPartResponse.receivedSize;
+    }
+
+    try {
+      await this._emptyReceive({ timeout: 500 });
+    } catch {
+      console.info('getPitData: empty receive failed, continuing anyways...');
+    }
+    
+    try {
+      await this.sendPacket(new PitFilePacket(PitFileRequest.EndTransfer));
+      
+      const pitFileResponse = new PitFileResponse();
+      await this.receivePacket(pitFileResponse);
+    } catch {
+      console.info('getPitData: failed to fully end PIT transfer session, continuing anyways...');
+    }
+
+    const pitData = new PitData();
+    pitData.unpack(fileData);
+    return pitData;
   }
 
   async sendFile(fileData: Uint8Array, destination: FileTransferDestination, deviceType: number, fileIdentifier: number) {
