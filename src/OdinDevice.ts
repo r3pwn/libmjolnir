@@ -1,8 +1,8 @@
 import { PitData } from './libpit';
 import { InboundPacket } from './packets/inbound/InboundPacket';
 import { PitFileResponse } from './packets/inbound/PitFileResponse';
+import { EndSessionResponse } from './packets/inbound/EndSessionResponse';
 import { ReceiveFilePartPacket } from './packets/inbound/ReceiveFilePartPacket';
-import { ResponsePacket, ResponseType } from './packets/inbound/ResponsePacket';
 import { SendFilePartResponse } from './packets/inbound/SendFilePartResponse';
 import { SessionSetupResponse } from './packets/inbound/SessionSetupResponse';
 import { BeginSessionPacket } from './packets/outbound/BeginSessionPacket';
@@ -20,6 +20,7 @@ import { PitFilePacket, PitFileRequest } from './packets/outbound/PitFilePacket'
 import { SendFilePartPacket } from './packets/outbound/SendFilePartPacket';
 import { ByteArray } from './utils/ByteArray';
 import { timeoutPromise } from './utils/timeoutPromise';
+import { FileTransferResponse } from './packets/inbound/FileTransferResponse';
 
 export type DeviceOptions = {
   logging: boolean;
@@ -42,6 +43,9 @@ export class OdinDevice {
   outEndpointNum = -1;
   inEndpointNum = -1;
   deviceOptions: DeviceOptions;
+  
+  _devicePit?: PitData;
+  _deviceType?: number;
 
   _fileTransferSequenceMaxLength = 800;
 	_fileTransferPacketSize = 131072;
@@ -173,7 +177,9 @@ export class OdinDevice {
     });
   }
 
-  async receivePacket (packet: InboundPacket) {
+  async receivePacket <T extends InboundPacket> (type: { new(): T }): Promise<T> {
+    const packet = new type();
+
     const data = await timeoutPromise(
       this.usbDevice.transferIn(this.inEndpointNum, packet.size),
       '[device] unable to receive packet from device',
@@ -192,36 +198,20 @@ export class OdinDevice {
     packet.receivedSize = data.data.byteLength;
 
     packet.unpack();
-  }
-  
-  async _emptySend (options?: EmptyPacketOptions) {
-    await timeoutPromise(
-      this.usbDevice.transferOut(this.inEndpointNum, new Uint8Array()),
-      '[device] device did not respond to empty send',
-      options?.timeout ?? this.deviceOptions.timeout
-    );
-  }
-    
-  async _emptyReceive (options?: EmptyPacketOptions) {
-    await timeoutPromise(
-      this.usbDevice.transferIn(this.inEndpointNum, 1),
-      '[device] device did not respond to empty receive',
-      options?.timeout ?? this.deviceOptions.timeout
-    );
+    return packet;
   }
 
   async requestDeviceType () {
     await this.sendPacket(new DeviceTypePacket());
+    const response = await this.receivePacket(SessionSetupResponse);
 
-    const responsePacket = new SessionSetupResponse();
-    await this.receivePacket(responsePacket);
+    this._deviceType = response.result;
   }
   
   async beginSession () {
     await this.sendPacket(new BeginSessionPacket());
     
-    const beginSessionResponse = new SessionSetupResponse();
-    await this.receivePacket(beginSessionResponse);
+    const beginSessionResponse = await this.receivePacket(SessionSetupResponse);
 
     const defaultPacketSize = beginSessionResponse.result;
 
@@ -235,9 +225,7 @@ export class OdinDevice {
 
     await this.sendPacket(new FilePartSizePacket(this._fileTransferPacketSize))
 
-    const filePartSizeResponse = new SessionSetupResponse();
-
-		await this.receivePacket(filePartSizeResponse);
+    const filePartSizeResponse = await this.receivePacket(SessionSetupResponse);
 
     if (filePartSizeResponse.result !== 0) {
 			throw new Error(`Unexpected file part size response!, Expected: 0, Received: ${filePartSizeResponse.result}`);
@@ -246,8 +234,7 @@ export class OdinDevice {
 
   async endSession (reboot?: boolean) {
     await this.sendPacket(new EndSessionPacket(reboot ? EndSessionRequest.RebootDevice : EndSessionRequest.EndSession));
-    const responsePacket = new ResponsePacket(ResponseType.EndSession);
-    await this.receivePacket(responsePacket);
+    await this.receivePacket(EndSessionResponse);
   }
 
   async reboot () {
@@ -257,8 +244,7 @@ export class OdinDevice {
   async getPitData () : Promise<PitData> {
     await this.sendPacket(new PitFilePacket(PitFileRequest.Dump));
 
-    const dumpResponse = new PitFileResponse();
-    await this.receivePacket(dumpResponse);
+    const dumpResponse = await this.receivePacket(PitFileResponse);
 
     const fileSize = dumpResponse.fileSize;
 
@@ -272,9 +258,7 @@ export class OdinDevice {
       this.deviceOptions.logging && console.log(`getPitData: sending partial packet ${i+1} of ${transferCount}`);
       await this.sendPacket(new DumpPartPitFilePacket(i));
       
-      const receivePitPartResponse = new ReceiveFilePartPacket();
-
-      await this.receivePacket(receivePitPartResponse);
+      const receivePitPartResponse = await this.receivePacket(ReceiveFilePartPacket);
 
       // Copy all of the packet data into the buffer.
       fileData.set(receivePitPartResponse.data, offset);
@@ -289,16 +273,34 @@ export class OdinDevice {
     
     try {
       await this.sendPacket(new PitFilePacket(PitFileRequest.EndTransfer));
-      
-      const pitFileResponse = new PitFileResponse();
-      await this.receivePacket(pitFileResponse);
+      await this.receivePacket(PitFileResponse);
     } catch {
       console.info('getPitData: failed to fully end PIT transfer session, continuing anyways...');
     }
 
     const pitData = new PitData();
     pitData.unpack(fileData);
+
+    this._devicePit = pitData;
     return pitData;
+  }
+
+  async erasePartition(partitionName: string) {
+    if (!this._devicePit) {
+      await this.getPitData();
+    }
+
+    if (!this._deviceType) {
+      await this.requestDeviceType();
+    }
+    
+    const entry = this._devicePit?.findEntryByName(partitionName);
+
+    if (!entry) {
+      throw new Error(`erasePartition: device PIT does not have a partition named ${partitionName}`);
+    }
+
+    await this.sendFile(new Uint8Array(entry.fileSize), FileTransferDestination.Phone, this._deviceType ?? 0, entry.identifier);
   }
 
   async sendFile(fileData: Uint8Array, destination: FileTransferDestination, deviceType: number, fileIdentifier: number) {
@@ -309,9 +311,7 @@ export class OdinDevice {
     await this.sendPacket(new FileTransferPacket(FileTransferRequest.Flash));
 
     const fileSize = fileData.length;
-
-    let fileTransferResponse = new ResponsePacket(ResponseType.FileTransfer);
-    await this.receivePacket(fileTransferResponse);
+    await this.receivePacket(FileTransferResponse);
 
     let sequenceCount = fileSize / (this._fileTransferSequenceMaxLength * this._fileTransferPacketSize);
     let lastSequenceSize = this._fileTransferSequenceMaxLength;
@@ -337,8 +337,7 @@ export class OdinDevice {
       const sequenceTotalByteCount = sequenceSize * this._fileTransferPacketSize;
 
       await this.sendPacket(new FlashPartFileTransferPacket(sequenceTotalByteCount));
-
-      await this.receivePacket(new ResponsePacket(ResponseType.FileTransfer));
+      await this.receivePacket(FileTransferResponse);
 
       for (let filePartIndex = 0; filePartIndex < sequenceSize; filePartIndex++) {
         if (filePartIndex !== 0) {
@@ -347,9 +346,7 @@ export class OdinDevice {
 
         await this.sendPacket(new SendFilePartPacket(fileData, this._fileTransferPacketSize));
 
-        const sendFilePartResponse = new SendFilePartResponse();
-        await this.receivePacket(sendFilePartResponse);
-        
+        const sendFilePartResponse = await this.receivePacket(SendFilePartResponse);
         const receivedPartIndex = sendFilePartResponse.partIndex;
 
         if (receivedPartIndex != filePartIndex) {
@@ -378,7 +375,22 @@ export class OdinDevice {
       }
     }
 
-    fileTransferResponse = new ResponsePacket(ResponseType.FileTransfer);
-		await this.receivePacket(fileTransferResponse);
+    await this.receivePacket(FileTransferResponse);
+  }
+
+  async _emptySend (options?: EmptyPacketOptions) {
+    await timeoutPromise(
+      this.usbDevice.transferOut(this.inEndpointNum, new Uint8Array()),
+      '[device] device did not respond to empty send',
+      options?.timeout ?? this.deviceOptions.timeout
+    );
+  }
+    
+  async _emptyReceive (options?: EmptyPacketOptions) {
+    await timeoutPromise(
+      this.usbDevice.transferIn(this.inEndpointNum, 1),
+      '[device] device did not respond to empty receive',
+      options?.timeout ?? this.deviceOptions.timeout
+    );
   }
 }
