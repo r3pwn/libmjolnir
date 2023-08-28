@@ -45,7 +45,6 @@ export class OdinDevice {
   deviceOptions: DeviceOptions;
   
   _devicePit?: PitData;
-  _deviceType?: number;
 
   _fileTransferSequenceMaxLength = 800;
 	_fileTransferPacketSize = 131072;
@@ -203,9 +202,7 @@ export class OdinDevice {
 
   async requestDeviceType () {
     await this.sendPacket(new DeviceTypePacket());
-    const response = await this.receivePacket(SessionSetupResponse);
-
-    this._deviceType = response.result;
+    await this.receivePacket(SessionSetupResponse);
   }
   
   async beginSession () {
@@ -289,10 +286,6 @@ export class OdinDevice {
     if (!this._devicePit) {
       await this.getPitData();
     }
-
-    if (!this._deviceType) {
-      await this.requestDeviceType();
-    }
     
     const entry = this._devicePit?.findEntryByName(partitionName);
 
@@ -300,7 +293,7 @@ export class OdinDevice {
       throw new Error(`erasePartition: device PIT does not have a partition named ${partitionName}`);
     }
 
-    await this.sendFile(new Uint8Array(entry.fileSize), FileTransferDestination.Phone, this._deviceType ?? 0, entry.identifier);
+    await this.sendFile(new Uint8Array(entry.fileSize), FileTransferDestination.Phone, entry.deviceType, entry.identifier);
   }
 
   async sendFile(fileData: Uint8Array, destination: FileTransferDestination, deviceType: number, fileIdentifier: number) {
