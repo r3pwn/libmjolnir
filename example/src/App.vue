@@ -24,6 +24,10 @@ import { ref } from 'vue';
       .then(setupDevice);
   }
 
+  function beginSession () {
+    connectedDevice.value.beginSession();
+  }
+
   function rebootDevice () {
     connectedDevice.value.reboot();
   }
@@ -42,6 +46,7 @@ import { ref } from 'vue';
 <template>
   <button @click="requestDeviceAccess">Request device access</button>
   <p v-if="hasDevice">
+    <button @click="beginSession">Begin session</button>
     <button @click="rebootDevice">Reboot device</button>
     <button @click="requestDeviceType">Request device type</button>
     <button @click="receivePitFile">Print PIT file</button>
@@ -49,6 +54,7 @@ import { ref } from 'vue';
     <p v-if="pitEntries.length">
       <p v-for="entry in pitEntries">
         <div>partitionName: {{ entry.partitionName }}</div><br/>
+        <div>identifier: {{ entry.identifier }}</div>
         <div>flashFileName: {{ entry.flashFilename }}</div><br/>
         <div>blockSizeOrOffset: {{ entry.blockSizeOrOffset }}</div><br/>
         <div>----------------------------------------------</div>
