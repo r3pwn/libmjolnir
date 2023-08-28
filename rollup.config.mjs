@@ -11,7 +11,7 @@ const config = {
   },
   plugins: [
     typescript({
-      exclude: ['**/__tests__', '**/*.test.ts']
+      exclude: ['tests/**', '**/*.test.ts']
     }),
     eslint()
   ]
