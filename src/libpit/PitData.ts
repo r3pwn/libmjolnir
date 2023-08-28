@@ -1,40 +1,23 @@
+import { ByteArray } from '../utils/ByteArray';
 import { PitEntry } from './PitEntry';
 import { constants } from './constants';
 
 export class PitData {
-  unknown1 = 0;
-  unknown2 = 0;
-  unknown3 = 0;
-  unknown4 = 0;
-  unknown5 = 0;
-  unknown6 = 0;
-  unknown7 = 0;
-  unknown8 = 0;
+  _fileType = new Uint8Array(8);
+  _pitName = new Uint8Array(12);
   entryCount = 0;
   entries: PitEntry[] = [];
 
   matches (otherPitData: PitData) {
-    return this.entryCount == otherPitData.entryCount &&
-      this.unknown1 == otherPitData.unknown1 &&
-      this.unknown2 == otherPitData.unknown2 &&
-      this.unknown3 == otherPitData.unknown3 &&
-      this.unknown4 == otherPitData.unknown4 &&
-      this.unknown5 == otherPitData.unknown5 &&
-      this.unknown6 == otherPitData.unknown6 &&
-      this.unknown7 == otherPitData.unknown7 &&
-      this.unknown8 == otherPitData.unknown8 &&
+    return this.entryCount === otherPitData.entryCount &&
+      this.fileType === otherPitData.fileType &&
+      this.pitName === otherPitData.pitName &&
       this.entries.every((entry, index) => entry.matches(otherPitData.entries[index]));
   }
 
   clear () {
-    this.unknown1 = 0;
-    this.unknown2 = 0;
-    this.unknown3 = 0;
-    this.unknown4 = 0;
-    this.unknown5 = 0;
-    this.unknown6 = 0;
-    this.unknown7 = 0;
-    this.unknown8 = 0;
+    this._fileType = new Uint8Array(8);
+    this._pitName = new Uint8Array(12);
     this.entryCount = 0;
     this.entries = [];
   }
@@ -75,7 +58,6 @@ export class PitData {
   }
 
   unpackCharArray (data: Uint8Array, offset: number, length: number) : Uint8Array {
-
     return data.slice(offset, offset + length);
   }
 
@@ -95,14 +77,8 @@ export class PitData {
 
     this.entries = new Array(this.entryCount);
 
-    this.unknown1 = this.unpackInteger(data, 8);
-    this.unknown2 = this.unpackInteger(data, 12);
-    this.unknown3 = this.unpackShort(data, 16);
-    this.unknown4 = this.unpackShort(data, 18);
-    this.unknown5 = this.unpackShort(data, 20);
-    this.unknown6 = this.unpackShort(data, 22);
-    this.unknown7 = this.unpackShort(data, 24);
-    this.unknown8 = this.unpackShort(data, 26);
+    this._fileType = this.unpackCharArray(data, 8, 8);
+    this._pitName = this.unpackCharArray(data, 16, 12);
 
     let entryOffset: number;
 
@@ -137,14 +113,8 @@ export class PitData {
     this.packInteger(data, 0, constants.FileIdentifier);
     this.packInteger(data, 4, this.entryCount);
 
-    this.packInteger(data, 8, this.unknown1);
-    this.packInteger(data, 12, this.unknown2);
-    this.packShort(data, 16, this.unknown3);
-    this.packShort(data, 18, this.unknown4);
-    this.packShort(data, 20, this.unknown5);
-    this.packShort(data, 22, this.unknown6);
-    this.packShort(data, 24, this.unknown7);
-    this.packShort(data, 26, this.unknown8);
+    this.packCharArray(data, 8, this._fileType);
+    this.packCharArray(data, 16, this._pitName);
 
     let entryOffset: number;
 
@@ -169,6 +139,22 @@ export class PitData {
       this.packCharArray(data, entryOffset + 36 + constants.PartitionNameMaxLength, this.entries[i]._flashFilename);
       this.packCharArray(data, entryOffset + 36 + constants.PartitionNameMaxLength + constants.FlashFilenameMaxLength, this.entries[i]._fotaFilename);
     }
+  }
+
+  get fileType() {
+    return ByteArray.toString(this._fileType);
+  }
+
+  set fileType(desiredType: string) {
+    this._fileType.set(ByteArray.fromString(desiredType));
+  }
+
+  get pitName() {
+    return ByteArray.toString(this._pitName);
+  }
+
+  set pitName(desiredName: string) {
+    this._pitName.set(ByteArray.fromString(desiredName));
   }
 
   getEntry (index: number) : PitEntry {
