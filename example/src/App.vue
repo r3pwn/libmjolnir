@@ -1,12 +1,12 @@
 <script setup lang="ts">
-  import libmjolnir, { SamsungDevice, libpit } from 'libmjolnir';
+  import libmjolnir, { OdinDevice, libpit } from 'libmjolnir';
 import { ref } from 'vue';
 
   const hasDevice = ref(false);
   const pitEntries = ref([] as libpit.PitEntry[]);
-  const connectedDevice = ref({} as SamsungDevice);
+  const connectedDevice = ref({} as OdinDevice);
 
-  async function setupDevice (device: SamsungDevice) {
+  async function setupDevice (device: OdinDevice) {
     await device.initialize();
 
     connectedDevice.value = device;
@@ -53,10 +53,10 @@ import { ref } from 'vue';
 
     <p v-if="pitEntries.length">
       <p v-for="entry in pitEntries">
-        <div>partitionName: {{ entry.partitionName }}</div><br/>
+        <div>partitionName: {{ entry.partitionName }}</div>
         <div>identifier: {{ entry.identifier }}</div>
-        <div>flashFileName: {{ entry.flashFilename }}</div><br/>
-        <div>blockSizeOrOffset: {{ entry.blockSizeOrOffset }}</div><br/>
+        <div>flashFileName: {{ entry.flashFilename }}</div>
+        <div>blockSizeOrOffset: {{ entry.blockSizeOrOffset }}</div>
         <div>----------------------------------------------</div>
       </p>
     </p>
