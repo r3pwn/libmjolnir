@@ -156,12 +156,15 @@ export class SamsungDevice {
 
   async sendPacket (packet: OutboundPacket) {
     packet.pack();
+
+    this.deviceOptions.logging && console.log('sending', packet);
+
     return await timeoutPromise(
       this.usbDevice.transferOut(this.outEndpointNum, packet.data),
       '[device] unable to send packet',
       this.deviceOptions.timeout
     ).then(result => {
-      this.deviceOptions.logging && console.log('sendPacket', result);
+      this.deviceOptions.logging && console.log('sendPacket response', result);
       return result;
     });
   }
@@ -172,7 +175,7 @@ export class SamsungDevice {
       '[device] unable to receive packet from device',
       this.deviceOptions.timeout
     )
-    this.deviceOptions.logging && console.log('receivePacket', data);
+    this.deviceOptions.logging && console.log('received packet', packet);
 
     if (data.data == null || data.status !== 'ok') {
       throw new Error('receivePacket failed');
@@ -240,7 +243,7 @@ export class SamsungDevice {
     try {
       await this._emptyReceive();
     } catch {
-      console.log('getPitData: empty receive failed, continuing anyways')
+      console.info('getPitData: empty receive failed, continuing anyways')
     }
     
     await this.sendPacket(new PitFilePacket(PitFileRequest.EndTransfer));
