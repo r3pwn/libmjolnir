@@ -1,6 +1,6 @@
 {
   "name": "libmjolnir",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "WebUSB library for communicating with Samsung devices in Download Mode",
   "main": "dist/index.js",
   "author": "Greg Willard (r3pwn)",
