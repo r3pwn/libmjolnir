@@ -2,7 +2,7 @@
   import { ref } from 'vue';
   import { libpit } from 'libmjolnir';
 
-  const props = defineProps({
+  defineProps({
     entry: {
       type: libpit.PitEntry,
       required: true

@@ -1,6 +1,6 @@
 <script setup lang="ts">
   import { ref } from 'vue';
-  import libmjolnir, { OdinDevice, libpit } from '../..';
+  import libmjolnir, { OdinDevice, libpit } from 'libmjolnir';
   import PartitionEntry from './components/PartitionEntry.vue';
 
   const hasDevice = ref(false);

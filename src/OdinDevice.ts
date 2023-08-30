@@ -25,18 +25,20 @@ import { TotalBytesPacket } from './packets/outbound/TotalBytesPacket';
 import { EraseUserdataPacket } from './packets/outbound/EraseUserdataPacket';
 
 export type DeviceOptions = {
+  /** whether to enable additional logging (basic logging is already enabled) */
   logging: boolean;
+  /** the number of milliseconds to time out after */
   timeout: number;
 }
 
-export type EmptyPacketOptions = {
+type EmptyPacketOptions = {
   timeout?: number;
 }
 
 const USB_CLASS_CDC_DATA = 0x0A;
 
 const DEFAULT_DEVICE_OPTIONS = {
-  logging: true,
+  logging: false,
   timeout: 5000
 } as DeviceOptions;
 
@@ -73,6 +75,9 @@ export class OdinDevice {
     navigator.usb.addEventListener('disconnect', eventHandler);
   }
 
+  /**
+   * Open and claim the device, and perform the Odin handshake
+   */
   async initialize () {
     try {
       await timeoutPromise(
@@ -126,6 +131,9 @@ export class OdinDevice {
     return this.handshake();
   }
 
+  /**
+   * Perform the Odin handshake, required for any Odin operations
+   */
   async handshake () {
     // Samsung are Norse mythology fans, I guess?
     const helloMsg = 'ODIN';
@@ -166,50 +174,14 @@ export class OdinDevice {
     );
   }
 
-  async sendPacket (packet: OutboundPacket, timeout?: number) {
-    packet.pack();
-
-    this.deviceOptions.logging && console.log('sending', packet);
-
-    return await timeoutPromise(
-      this.usbDevice.transferOut(this.outEndpointNum, packet.data),
-      '[device] unable to send packet',
-      timeout ?? this.deviceOptions.timeout
-    ).then(result => {
-      this.deviceOptions.logging && console.log('sendPacket response', result);
-      return result;
-    });
-  }
-
-  async receivePacket <T extends InboundPacket> (type: { new(): T }, timeout?: number): Promise<T> {
-    const packet = new type();
-
-    const data = await timeoutPromise(
-      this.usbDevice.transferIn(this.inEndpointNum, packet.size),
-      '[device] unable to receive packet from device',
-      timeout ?? this.deviceOptions.timeout
-    )
-    this.deviceOptions.logging && console.log('received packet', packet);
-
-    if (data.data == null || data.status !== 'ok') {
-      throw new Error('receivePacket failed');
-    }
-
-    if (data.data?.byteLength !== packet.size && !packet.sizeVariable) {
-      throw new Error('incorrect size received');
-    }
-    packet.data = new Uint8Array(data.data.buffer);
-    packet.receivedSize = data.data.byteLength;
-
-    packet.unpack();
-    return packet;
-  }
-
   async requestDeviceType () {
     await this.sendPacket(new DeviceTypePacket());
     await this.receivePacket(SessionSetupResponse);
   }
   
+  /**
+   * Begin a session on the device. This is a pre-requisite for many Odin operations
+   */
   async beginSession () {
     await this.sendPacket(new BeginSessionPacket());
     
@@ -224,6 +196,11 @@ export class OdinDevice {
     }
   }
 
+  /**
+   * Tells the device to accept a specific packet size for flash operations.
+   * 
+   * Note: This is not supported on all devices.
+   */
   async setFlashPacketSize (packetSize: number, sequence: number) {
     await this.sendPacket(new FilePartSizePacket(packetSize))
     
@@ -237,25 +214,38 @@ export class OdinDevice {
     this._flashSequence = sequence;
   }
 
+  /**
+   * Tells the device the size of the payload you wish to send it
+   */
   async setFlashTotalSize (totalSize: number) {
     await this.sendPacket(new TotalBytesPacket(totalSize))
     
-    const filePartSizeResponse = await this.receivePacket(SessionSetupResponse);
+    const fileTotalSizeResponse = await this.receivePacket(SessionSetupResponse);
     
-    if (filePartSizeResponse.result !== 0) {
-      throw new Error(`Unexpected file part size response!, Expected: 0, Received: ${filePartSizeResponse.result}`);
+    if (fileTotalSizeResponse.result !== 0) {
+      throw new Error(`Unexpected file part size response!, Expected: 0, Received: ${fileTotalSizeResponse.result}`);
 		}
   }
 
+  /**
+   * Ends the current flash session
+   * @param reboot - whether to reboot the device
+   */
   async endSession (reboot?: boolean) {
     await this.sendPacket(new EndSessionPacket(reboot ? EndSessionRequest.RebootDevice : EndSessionRequest.EndSession));
     await this.receivePacket(EndSessionResponse);
   }
 
+  /**
+   * Reboots the device, ending the current flash session if one is in progress
+   */
   async reboot () {
     await this.endSession(true);
   }
   
+  /**
+   * Returns the device's partion table in Samsung's "PIT" format
+   */
   async getPitData () : Promise<PitData> {
     await this.sendPacket(new PitFilePacket(PitFileRequest.Dump));
 
@@ -315,6 +305,12 @@ export class OdinDevice {
     await this.sendFile(fileData, FileTransferDestination.Phone, entry.deviceType, entry.identifier);
   }
 
+  /**
+   * Erases a partition with the given name by zeroing it out
+   * @param partitionName - the desired partition to erase
+   * 
+   * Note: This operation is experimental and may not function entirely as intended
+   */
   async erasePartition(partitionName: string) {
     if (!this._devicePit) {
       await this.getPitData();
@@ -330,11 +326,21 @@ export class OdinDevice {
     await this.sendFile(new Uint8Array(entry.blockSizeOrOffset), FileTransferDestination.Phone, entry.deviceType, entry.identifier);
   }
 
+  /**
+   * Tells Odin to erase the device's userdata.
+   */
   async eraseUserdata() {
     await this.sendPacket(new EraseUserdataPacket());
     await this.receivePacket(SessionSetupResponse);
   }
 
+  /**
+   * Flash a file to a device
+   * @param fileData - a byte array of the file's contents
+   * @param destination - whether this is a normal flash, or a modem flash
+   * @param deviceType - the partition's "deviceType"
+   * @param fileIdentifier - the partition ID you wish to flash to
+   */
   async sendFile(fileData: Uint8Array, destination: FileTransferDestination, deviceType: number, fileIdentifier: number) {
     if (destination === FileTransferDestination.Modem && !fileIdentifier) {
       throw new Error('The modem file does not have an identifier!');
@@ -411,12 +417,43 @@ export class OdinDevice {
     await this.receivePacket(FileTransferResponse);
   }
 
-  async _emptySend (options?: EmptyPacketOptions) {
-    await timeoutPromise(
-      this.usbDevice.transferOut(this.inEndpointNum, new Uint8Array()),
-      '[device] device did not respond to empty send',
-      options?.timeout ?? this.deviceOptions.timeout
-    );
+  async sendPacket (packet: OutboundPacket, timeout?: number) {
+    packet.pack();
+
+    this.deviceOptions.logging && console.log('sending', packet);
+
+    return await timeoutPromise(
+      this.usbDevice.transferOut(this.outEndpointNum, packet.data),
+      '[device] unable to send packet',
+      timeout ?? this.deviceOptions.timeout
+    ).then(result => {
+      this.deviceOptions.logging && console.log('sendPacket response', result);
+      return result;
+    });
+  }
+
+  async receivePacket <T extends InboundPacket> (type: { new(): T }, timeout?: number): Promise<T> {
+    const packet = new type();
+
+    const data = await timeoutPromise(
+      this.usbDevice.transferIn(this.inEndpointNum, packet.size),
+      '[device] unable to receive packet from device',
+      timeout ?? this.deviceOptions.timeout
+    )
+    this.deviceOptions.logging && console.log('received packet', packet);
+
+    if (data.data == null || data.status !== 'ok') {
+      throw new Error('receivePacket failed');
+    }
+
+    if (data.data?.byteLength !== packet.size && !packet.sizeVariable) {
+      throw new Error('incorrect size received');
+    }
+    packet.data = new Uint8Array(data.data.buffer);
+    packet.receivedSize = data.data.byteLength;
+
+    packet.unpack();
+    return packet;
   }
     
   async _emptyReceive (options?: EmptyPacketOptions) {
