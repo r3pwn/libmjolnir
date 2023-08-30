@@ -1,12 +1,10 @@
 <script setup lang="ts">
   import { ref } from 'vue';
-  import libmjolnir, { OdinDevice, libpit } from 'libmjolnir';
-
-  // allowlist for erasable partitions to avoid letting a user mess up their device
-  const ALLOW_ERASE = ['cache', 'userdata'];
+  import libmjolnir, { OdinDevice, libpit } from '../..';
+  import PartitionEntry from './components/PartitionEntry.vue';
 
   const hasDevice = ref(false);
-  const pitEntries = ref([] as libpit.PitEntry[]);
+  const devicePit = ref(undefined as libpit.PitData | undefined);
   const connectedDevice = ref({} as OdinDevice);
 
   async function setupDevice (device: OdinDevice) {
@@ -17,7 +15,7 @@
 
     device.onDisconnect(() => {
       hasDevice.value = false;
-      pitEntries.value = [];
+      devicePit.value = undefined;
       console.log('device was disconnected')
     });
   }
@@ -42,12 +40,12 @@
   async function receivePitFile () {
     await connectedDevice.value.getPitData().then((pitData) => {
       console.log(pitData);
-      pitEntries.value = pitData.entries;
+      devicePit.value = pitData;
     });
   }
 
-  async function erasePartition (partitionName: string) {
-    await connectedDevice.value.erasePartition(partitionName);
+  async function flashPartition (data: {name: string, data: Uint8Array}) {
+    await connectedDevice.value.flashPartition(data.name, data.data);
   }
 </script>
 
@@ -59,20 +57,15 @@
     <button @click="requestDeviceType">Request device type</button>
     <button @click="receivePitFile">Print PIT file</button>
 
-    <p v-if="pitEntries.length">
-      <p v-for="entry in pitEntries">
-        <div>partitionName: {{ entry.partitionName }}</div>
-        <div>identifier: {{ entry.identifier }}</div>
-        <div>flashFileName: {{ entry.flashFilename }}</div>
-        <div>blockSizeOrOffset: {{ entry.blockSizeOrOffset }}</div>
-        <button 
-          v-if="entry.isFlashable() && ALLOW_ERASE.includes(entry.partitionName.toLowerCase())"
-          @click="erasePartition(entry.partitionName)"
-        >
-          Erase
-        </button>
-        <div>----------------------------------------------</div>
-      </p>
+    <p v-if="devicePit?.entries?.length">
+      <div>board type: {{ devicePit.pitName }}</div>
+      <template v-for="(entry, index) in devicePit.entries">
+        <partition-entry
+          :entry="entry"
+          @flash="flashPartition"
+        />
+        <hr v-if="index !== devicePit.entries.length - 1" />
+      </template>
     </p>
   </p>
 </template>
