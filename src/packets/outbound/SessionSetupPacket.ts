@@ -6,6 +6,7 @@ export enum SessionRequest {
   TotalBytes = 2,
   //kEnableSomeSortOfFlag = 3,
   FilePartSize = 5,
+  EraseUserdata = 7,
   EnableTFlash = 8
 }
 

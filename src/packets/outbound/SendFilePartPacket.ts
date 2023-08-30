@@ -5,4 +5,8 @@ export class SendFilePartPacket extends OutboundPacket {
     super(size);
     this.data.set(byteData);
   }
+
+  pack () {
+      // this packet is already packed
+  }
 }

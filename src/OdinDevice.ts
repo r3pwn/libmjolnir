@@ -21,6 +21,8 @@ import { SendFilePartPacket } from './packets/outbound/SendFilePartPacket';
 import { ByteArray } from './utils/ByteArray';
 import { timeoutPromise } from './utils/timeoutPromise';
 import { FileTransferResponse } from './packets/inbound/FileTransferResponse';
+import { TotalBytesPacket } from './packets/outbound/TotalBytesPacket';
+import { EraseUserdataPacket } from './packets/outbound/EraseUserdataPacket';
 
 export type DeviceOptions = {
   logging: boolean;
@@ -46,8 +48,11 @@ export class OdinDevice {
   
   _devicePit?: PitData;
 
-  _fileTransferSequenceMaxLength = 800;
-	_fileTransferPacketSize = 131072;
+  /** The amount of time to wait for flash packets (per packet, in milliseconds) */
+  _flashTimeout = 30_000;
+  _flashSequence = 240;
+  /** The maximum packet size for flash packets */
+	_flashPacketSize = 131072;
 
   constructor (usbDevice: USBDevice, options?: Partial<DeviceOptions>) {
     this.usbDevice = usbDevice;
@@ -161,7 +166,7 @@ export class OdinDevice {
     );
   }
 
-  async sendPacket (packet: OutboundPacket) {
+  async sendPacket (packet: OutboundPacket, timeout?: number) {
     packet.pack();
 
     this.deviceOptions.logging && console.log('sending', packet);
@@ -169,20 +174,20 @@ export class OdinDevice {
     return await timeoutPromise(
       this.usbDevice.transferOut(this.outEndpointNum, packet.data),
       '[device] unable to send packet',
-      this.deviceOptions.timeout
+      timeout ?? this.deviceOptions.timeout
     ).then(result => {
       this.deviceOptions.logging && console.log('sendPacket response', result);
       return result;
     });
   }
 
-  async receivePacket <T extends InboundPacket> (type: { new(): T }): Promise<T> {
+  async receivePacket <T extends InboundPacket> (type: { new(): T }, timeout?: number): Promise<T> {
     const packet = new type();
 
     const data = await timeoutPromise(
       this.usbDevice.transferIn(this.inEndpointNum, packet.size),
       '[device] unable to receive packet from device',
-      this.deviceOptions.timeout
+      timeout ?? this.deviceOptions.timeout
     )
     this.deviceOptions.logging && console.log('received packet', packet);
 
@@ -212,20 +217,33 @@ export class OdinDevice {
 
     const defaultPacketSize = beginSessionResponse.result;
 
-    // 0 means changing the packet size is not supported.
-    if (defaultPacketSize === 0) {
-      return;
+    // version 2 and above allow us to negotiate the packet size
+    if (defaultPacketSize >= 2) {
+      this._flashTimeout = 120_000
+      await this.setFlashPacketSize(1048576, 30);
     }
+  }
 
-    this._fileTransferPacketSize = 1048576; // 1 MiB
-		this._fileTransferSequenceMaxLength = 30; // Therefore, packetSize * sequenceMaxLength == 30 MiB per sequence.
-
-    await this.sendPacket(new FilePartSizePacket(this._fileTransferPacketSize))
-
+  async setFlashPacketSize (packetSize: number, sequence: number) {
+    await this.sendPacket(new FilePartSizePacket(packetSize))
+    
     const filePartSizeResponse = await this.receivePacket(SessionSetupResponse);
-
+    
     if (filePartSizeResponse.result !== 0) {
-			throw new Error(`Unexpected file part size response!, Expected: 0, Received: ${filePartSizeResponse.result}`);
+      throw new Error(`Unexpected file part size response!, Expected: 0, Received: ${filePartSizeResponse.result}`);
+		}
+
+    this._flashPacketSize = packetSize;
+    this._flashSequence = sequence;
+  }
+
+  async setFlashTotalSize (totalSize: number) {
+    await this.sendPacket(new TotalBytesPacket(totalSize))
+    
+    const filePartSizeResponse = await this.receivePacket(SessionSetupResponse);
+    
+    if (filePartSizeResponse.result !== 0) {
+      throw new Error(`Unexpected file part size response!, Expected: 0, Received: ${filePartSizeResponse.result}`);
 		}
   }
 
@@ -282,6 +300,21 @@ export class OdinDevice {
     return pitData;
   }
 
+  async flashPartition(partitionName: string, fileData: Uint8Array) {
+    if (!this._devicePit) {
+      await this.getPitData();
+    }
+    
+    const entry = this._devicePit?.findEntryByName(partitionName);
+
+    if (!entry) {
+      throw new Error(`erasePartition: device PIT does not have a partition named ${partitionName}`);
+    }
+
+    await this.setFlashTotalSize(fileData.byteLength);
+    await this.sendFile(fileData, FileTransferDestination.Phone, entry.deviceType, entry.identifier);
+  }
+
   async erasePartition(partitionName: string) {
     if (!this._devicePit) {
       await this.getPitData();
@@ -293,7 +326,13 @@ export class OdinDevice {
       throw new Error(`erasePartition: device PIT does not have a partition named ${partitionName}`);
     }
 
-    await this.sendFile(new Uint8Array(entry.fileSize), FileTransferDestination.Phone, entry.deviceType, entry.identifier);
+    await this.setFlashTotalSize(entry.blockSizeOrOffset);
+    await this.sendFile(new Uint8Array(entry.blockSizeOrOffset), FileTransferDestination.Phone, entry.deviceType, entry.identifier);
+  }
+
+  async eraseUserdata() {
+    await this.sendPacket(new EraseUserdataPacket());
+    await this.receivePacket(SessionSetupResponse);
   }
 
   async sendFile(fileData: Uint8Array, destination: FileTransferDestination, deviceType: number, fileIdentifier: number) {
@@ -302,69 +341,70 @@ export class OdinDevice {
     }
 
     await this.sendPacket(new FileTransferPacket(FileTransferRequest.Flash));
-
-    const fileSize = fileData.length;
     await this.receivePacket(FileTransferResponse);
+    
+    const fileSize = fileData.length;
 
-    let sequenceCount = fileSize / (this._fileTransferSequenceMaxLength * this._fileTransferPacketSize);
-    let lastSequenceSize = this._fileTransferSequenceMaxLength;
-    const partialPacketByteCount = fileSize % this._fileTransferPacketSize;
+    let sequenceCount = Math.floor(fileSize / (this._flashSequence * this._flashPacketSize));
+    let lastSequenceSize = this._flashSequence;
+    const partialPacketByteCount = fileSize % this._flashPacketSize;
 
-    if (fileSize % (this._fileTransferSequenceMaxLength * this._fileTransferPacketSize) != 0)
+    if (fileSize % (this._flashSequence * this._flashPacketSize) !== 0)
     {
       sequenceCount++;
   
-      const lastSequenceBytes = fileSize % (this._fileTransferSequenceMaxLength * this._fileTransferPacketSize);
-      lastSequenceSize = lastSequenceBytes / this._fileTransferPacketSize;
+      const lastSequenceBytes = fileSize % (this._flashSequence * this._flashPacketSize);
+      lastSequenceSize = Math.floor(lastSequenceBytes / this._flashPacketSize);
   
       if (partialPacketByteCount !== 0) {
         lastSequenceSize++;
       }
     }
 
-    let bytesTransferred = 0;
+    let startOffset = 0;
+    let endOffset = this._flashPacketSize;
 
     for (let sequenceIndex = 0; sequenceIndex < sequenceCount; sequenceIndex++) {
-      const isLastSequence = (sequenceIndex == sequenceCount - 1);
-      const sequenceSize = (isLastSequence) ? lastSequenceSize : this._fileTransferSequenceMaxLength;
-      const sequenceTotalByteCount = sequenceSize * this._fileTransferPacketSize;
+      console.log(`sending sequence ${sequenceIndex + 1} of ${sequenceCount}`);
+      const isLastSequence = sequenceIndex === (sequenceCount - 1);
+      const sequenceSize = (isLastSequence) ? lastSequenceSize : this._flashSequence;
+      const sequenceTotalByteCount = sequenceSize * this._flashPacketSize;
 
-      await this.sendPacket(new FlashPartFileTransferPacket(sequenceTotalByteCount));
-      await this.receivePacket(FileTransferResponse);
+      await this.sendPacket(new FlashPartFileTransferPacket(sequenceTotalByteCount), this._flashTimeout);
+      await this.receivePacket(FileTransferResponse, this._flashTimeout);
+
 
       for (let filePartIndex = 0; filePartIndex < sequenceSize; filePartIndex++) {
-        if (filePartIndex !== 0) {
-          await this._emptyReceive();
-        }
+        console.log(`sending part ${filePartIndex + 1} of ${sequenceSize}`);
 
-        await this.sendPacket(new SendFilePartPacket(fileData, this._fileTransferPacketSize));
+        await this.sendPacket(new SendFilePartPacket(fileData.slice(startOffset, endOffset), this._flashPacketSize), this._flashTimeout);
 
-        const sendFilePartResponse = await this.receivePacket(SendFilePartResponse);
+        const sendFilePartResponse = await this.receivePacket(SendFilePartResponse, this._flashTimeout);
         const receivedPartIndex = sendFilePartResponse.partIndex;
 
-        if (receivedPartIndex != filePartIndex) {
+        if (receivedPartIndex !== filePartIndex) {
           throw new Error(`Expected file part index: ${filePartIndex} Received: ${receivedPartIndex}`);
         }
 
-        bytesTransferred += this._fileTransferPacketSize;
+        startOffset += this._flashPacketSize;
+        endOffset += this._flashPacketSize;
 
-        if (bytesTransferred > fileSize) {
-          bytesTransferred = fileSize;
+        if (startOffset > fileSize) {
+          startOffset = fileSize;
+        }
+        if (endOffset > fileSize) {
+          endOffset = fileSize;
         }
       }
 
       const sequenceEffectiveByteCount = (isLastSequence && partialPacketByteCount != 0) ?
-        this._fileTransferPacketSize * (lastSequenceSize - 1) + partialPacketByteCount : sequenceTotalByteCount;
+        this._flashPacketSize * (lastSequenceSize - 1) + partialPacketByteCount : sequenceTotalByteCount;
 
       if (destination === FileTransferDestination.Phone)
       {
-        await this._emptySend();
         await this.sendPacket(new EndPhoneFileTransferPacket(sequenceEffectiveByteCount, 0, deviceType, fileIdentifier, isLastSequence));
-        await this._emptySend();
       } else {
-        await this._emptySend();
         await this.sendPacket(new EndModemFileTransferPacket(sequenceEffectiveByteCount, 0, deviceType, isLastSequence));
-        await this._emptySend();
       }
     }
 
