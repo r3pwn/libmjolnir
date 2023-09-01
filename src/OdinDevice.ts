@@ -19,7 +19,7 @@ import { OutboundPacket } from './packets/outbound/OutboundPacket';
 import { PitFilePacket, PitFileRequest } from './packets/outbound/PitFilePacket';
 import { SendFilePartPacket } from './packets/outbound/SendFilePartPacket';
 import { ByteArray } from './utils/ByteArray';
-import { timeoutPromise } from './utils/timeoutPromise';
+import { timeoutPromise } from './utils/helpers';
 import { FileTransferResponse } from './packets/inbound/FileTransferResponse';
 import { TotalBytesPacket } from './packets/outbound/TotalBytesPacket';
 import { EraseUserdataPacket } from './packets/outbound/EraseUserdataPacket';
