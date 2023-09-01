@@ -162,10 +162,10 @@ export class PitData {
   }
 
   findEntryByName (partitionName: string) : PitEntry | undefined {
-    return this.entries.find(entry => entry.isFlashable() && entry.partitionName === partitionName)
+    return this.entries.find(entry => entry.isFlashable && entry.partitionName === partitionName)
   }
 
   findEntryByIdentifier (partitionIdentifier: number) : PitEntry | undefined {
-    return this.entries.find(entry => entry.isFlashable() && entry.identifier === partitionIdentifier)
+    return this.entries.find(entry => entry.isFlashable && entry.identifier === partitionIdentifier)
   }
 }

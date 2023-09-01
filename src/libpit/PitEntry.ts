@@ -71,8 +71,8 @@ export class PitEntry {
       this.fotaFilename === otherPitEntry.fotaFilename;
   }
 
-  isFlashable(): boolean {
-    return !!this.partitionName?.length;
+  get isFlashable() {
+    return !!this.partitionName.trim()?.length;
   }
 
   get partitionName() {
