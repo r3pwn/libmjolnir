@@ -3,10 +3,11 @@ A WebUSB implementation of the Odin protocol, used for interfacing with Samsung 
 
 ## Status
 ### Working
-- Odin handshake
-- Device Reboot (end session)
-- Download PIT
 - PIT parsing
+- Odin handshake
+- Download PIT
+- Device Reboot
+- Erase userdata
 - Flash partition
 
 ### Planned
