@@ -35,7 +35,7 @@
     <div>identifier: {{ entry.identifier }}</div>
     <div>flashFileName: {{ entry.flashFilename }}</div>
     <div>blockSizeOrOffset: {{ entry.blockSizeOrOffset }}</div>
-    <template v-if="entry.isFlashable()">
+    <template v-if="entry.isFlashable">
       <input type="file" :id="`flash-${entry.identifier}`" @change="stageFile"/>
       <button
         :disabled="!currentFile"

@@ -18,6 +18,9 @@
       devicePit.value = undefined;
       console.log('device was disconnected')
     });
+
+    await device.beginSession();
+    devicePit.value = await connectedDevice.value.getPitData();
   }
 
   function requestDeviceAccess () {
@@ -25,23 +28,8 @@
       .then(setupDevice);
   }
 
-  function beginSession () {
-    connectedDevice.value.beginSession();
-  }
-
   function rebootDevice () {
     connectedDevice.value.reboot();
-  }
-
-  async function requestDeviceType () {
-    await connectedDevice.value.requestDeviceType();
-  }
-
-  async function receivePitFile () {
-    await connectedDevice.value.getPitData().then((pitData) => {
-      console.log(pitData);
-      devicePit.value = pitData;
-    });
   }
 
   async function flashPartition (data: {name: string, data: Uint8Array}) {
@@ -52,13 +40,9 @@
 <template>
   <button @click="requestDeviceAccess">Request device access</button>
   <p v-if="hasDevice">
-    <button @click="beginSession">Begin session</button>
-    <button @click="rebootDevice">Reboot device</button>
-    <button @click="requestDeviceType">Request device type</button>
-    <button @click="receivePitFile">Print PIT file</button>
-
     <p v-if="devicePit?.entries?.length">
       <div>board type: {{ devicePit.pitName }}</div>
+      <button @click="rebootDevice">Reboot device</button>
       <template v-for="(entry, index) in devicePit.entries">
         <partition-entry
           :entry="entry"
