@@ -7,10 +7,10 @@ A WebUSB implementation of the Odin protocol, used for interfacing with Samsung 
 - Device Reboot (end session)
 - Download PIT
 - PIT parsing
+- Flash partition
 
 ### Planned
 - Upload PIT
-- Flash partition
 
 ## Building
 `yarn build`
