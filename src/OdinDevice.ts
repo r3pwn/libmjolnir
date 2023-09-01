@@ -56,6 +56,8 @@ export class OdinDevice {
   /** The maximum packet size for flash packets */
 	_flashPacketSize = 131072;
 
+  _flashSessionStarted = false;
+
   constructor (usbDevice: USBDevice, options?: Partial<DeviceOptions>) {
     this.usbDevice = usbDevice;
     this.deviceOptions = DEFAULT_DEVICE_OPTIONS;
@@ -182,7 +184,12 @@ export class OdinDevice {
   /**
    * Begin a session on the device. This is a pre-requisite for many Odin operations
    */
-  async beginSession () {
+  async beginSession (forceBegin = false) {
+    // ensure a flash session has not already been started
+    if (this._flashSessionStarted && !forceBegin) {
+      return;
+    }
+
     await this.sendPacket(new BeginSessionPacket());
     
     const beginSessionResponse = await this.receivePacket(SessionSetupResponse);
@@ -194,6 +201,8 @@ export class OdinDevice {
       this._flashTimeout = 120_000
       await this.setFlashPacketSize(1048576, 30);
     }
+
+    this._flashSessionStarted = true;
   }
 
   /**
@@ -231,16 +240,21 @@ export class OdinDevice {
    * Ends the current flash session
    * @param reboot - whether to reboot the device
    */
-  async endSession (reboot?: boolean) {
+  async endSession (reboot = false, forceEnd = false) {
+    // ensure a flash session has been started
+    if (!this._flashSessionStarted && !forceEnd) {
+      return;
+    }
     await this.sendPacket(new EndSessionPacket(reboot ? EndSessionRequest.RebootDevice : EndSessionRequest.EndSession));
     await this.receivePacket(EndSessionResponse);
+    this._flashSessionStarted = false;
   }
 
   /**
    * Reboots the device, ending the current flash session if one is in progress
    */
   async reboot () {
-    await this.endSession(true);
+    await this.endSession(true, true);
   }
   
   /**
@@ -290,7 +304,14 @@ export class OdinDevice {
     return pitData;
   }
 
+  /**
+   * Flash a file to the specified partition
+   * @param {string} partitionName - the name of the partition to be flashed
+   * @param {Uint8Array} fileData - the data to flash to the partition
+   */
   async flashPartition(partitionName: string, fileData: Uint8Array) {
+    await this.beginSession();
+
     if (!this._devicePit) {
       await this.getPitData();
     }
@@ -303,27 +324,8 @@ export class OdinDevice {
 
     await this.setFlashTotalSize(fileData.byteLength);
     await this.sendFile(fileData, FileTransferDestination.Phone, entry.deviceType, entry.identifier);
-  }
-
-  /**
-   * Erases a partition with the given name by zeroing it out
-   * @param partitionName - the desired partition to erase
-   * 
-   * Note: This operation is experimental and may not function entirely as intended
-   */
-  async erasePartition(partitionName: string) {
-    if (!this._devicePit) {
-      await this.getPitData();
-    }
     
-    const entry = this._devicePit?.findEntryByName(partitionName);
-
-    if (!entry) {
-      throw new Error(`erasePartition: device PIT does not have a partition named ${partitionName}`);
-    }
-
-    await this.setFlashTotalSize(entry.blockSizeOrOffset);
-    await this.sendFile(new Uint8Array(entry.blockSizeOrOffset), FileTransferDestination.Phone, entry.deviceType, entry.identifier);
+    await this.endSession();
   }
 
   /**
