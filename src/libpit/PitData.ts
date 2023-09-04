@@ -4,20 +4,23 @@ import { constants } from './constants';
 
 export class PitData {
   _fileType = new Uint8Array(8);
-  _pitName = new Uint8Array(12);
+  _boardType = new Uint8Array(12);
   entryCount = 0;
   entries: PitEntry[] = [];
+  lunCount = 0;
 
   matches (otherPitData: PitData) {
     return this.entryCount === otherPitData.entryCount &&
       this.fileType === otherPitData.fileType &&
-      this.pitName === otherPitData.pitName &&
+      this.boardType === otherPitData.boardType &&
+      this.lunCount === otherPitData.lunCount &&
       this.entries.every((entry, index) => entry.matches(otherPitData.entries[index]));
   }
 
   clear () {
     this._fileType = new Uint8Array(8);
-    this._pitName = new Uint8Array(12);
+    this._boardType = new Uint8Array(12);
+    this.lunCount = 0;
     this.entryCount = 0;
     this.entries = [];
   }
@@ -78,7 +81,9 @@ export class PitData {
     this.entries = new Array(this.entryCount);
 
     this._fileType = this.unpackCharArray(data, 8, 8);
-    this._pitName = this.unpackCharArray(data, 16, 12);
+    this._boardType = this.unpackCharArray(data, 16, 12);
+
+    this.lunCount = this.unpackShort(data, 24);
 
     let entryOffset: number;
 
@@ -114,7 +119,9 @@ export class PitData {
     this.packInteger(data, 4, this.entryCount);
 
     this.packCharArray(data, 8, this._fileType);
-    this.packCharArray(data, 16, this._pitName);
+    this.packCharArray(data, 16, this._boardType);
+
+    this.packShort(data, 24, this.lunCount);
 
     let entryOffset: number;
 
@@ -149,12 +156,12 @@ export class PitData {
     this._fileType.set(ByteArray.fromString(desiredType));
   }
 
-  get pitName() {
-    return ByteArray.toString(this._pitName);
+  get boardType() {
+    return ByteArray.toString(this._boardType);
   }
 
-  set pitName(desiredName: string) {
-    this._pitName.set(ByteArray.fromString(desiredName));
+  set boardType(desiredName: string) {
+    this._boardType.set(ByteArray.fromString(desiredName));
   }
 
   getEntry (index: number) : PitEntry {

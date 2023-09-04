@@ -41,7 +41,7 @@ test('unpacks and re-packs a PIT file with additional data', () => {
   // unpack the data, check for success
   expect(data.unpack(bytes)).toBe(true);
   expect(data.fileType).toBe('COM_TAR2');
-  expect(data.pitName).toBe('SPRD8735');
+  expect(data.boardType).toBe('SPRD8735');
 
   // re-pack the data
   data.pack(bytes);

@@ -12,7 +12,8 @@ enum EntryDeviceType
   OneNand = 0,
   File, // FAT
   MMC,
-  All // ?
+  All, // ?
+  UFS
 }
 
 enum EntryAttribute
