@@ -396,6 +396,10 @@ export class OdinDevice {
       for (let filePartIndex = 0; filePartIndex < sequenceSize; filePartIndex++) {
         console.log(`sending part ${filePartIndex + 1} of ${sequenceSize}`);
 
+        if (filePartIndex !== 0) {
+          await this._emptySend();
+        }
+
         await this.sendPacket(new SendFilePartPacket(fileData.slice(startOffset, endOffset), this._flashPacketSize), this._flashTimeout);
 
         const sendFilePartResponse = await this.receivePacket(SendFilePartResponse, this._flashTimeout);
