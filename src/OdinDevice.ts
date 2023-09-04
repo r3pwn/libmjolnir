@@ -299,11 +299,7 @@ export class OdinDevice {
       offset += receivePitPartResponse.receivedSize;
     }
 
-    try {
-      await this._emptyReceive({ timeout: 500 });
-    } catch {
-      console.info('getPitData: empty receive failed, continuing anyways...');
-    }
+    await this._emptyReceive({ timeout: 500 });
     
     try {
       await this.sendPacket(new PitFilePacket(PitFileRequest.EndTransfer));
@@ -425,9 +421,13 @@ export class OdinDevice {
 
       if (destination === FileTransferDestination.Phone)
       {
+        await this._emptySend();
         await this.sendPacket(new EndPhoneFileTransferPacket(sequenceEffectiveByteCount, 0, deviceType, fileIdentifier, isLastSequence));
+        await this._emptySend();
       } else {
+        await this._emptySend();
         await this.sendPacket(new EndModemFileTransferPacket(sequenceEffectiveByteCount, 0, deviceType, isLastSequence));
+        await this._emptySend();
       }
     }
 
@@ -473,11 +473,27 @@ export class OdinDevice {
     return packet;
   }
     
+  async _emptySend (options?: EmptyPacketOptions) {
+    try {
+      await timeoutPromise(
+        this.usbDevice.transferOut(this.inEndpointNum, new Uint8Array()),
+        '[device] device did not respond to empty send, continuing...',
+        options?.timeout ?? this.deviceOptions.timeout
+      );
+    } catch (error) {
+      console.warn(error);
+    }
+  }
+
   async _emptyReceive (options?: EmptyPacketOptions) {
-    await timeoutPromise(
-      this.usbDevice.transferIn(this.inEndpointNum, 1),
-      '[device] device did not respond to empty receive',
-      options?.timeout ?? this.deviceOptions.timeout
-    );
+    try {
+      await timeoutPromise(
+        this.usbDevice.transferIn(this.inEndpointNum, 1),
+        '[device] device did not respond to empty receive, continuing...',
+        options?.timeout ?? this.deviceOptions.timeout
+      );
+    } catch (error) {
+      console.warn(error);
+    }
   }
 }
