@@ -142,7 +142,7 @@ export class OdinDevice {
         '[initialize] unable to claim device interface',
         this.deviceOptions.timeout
       );
-      
+
       if (altInterfaceNum !== 0) {
         await timeoutPromise(
           this.usbDevice.selectAlternateInterface(interfaceNum, 0),
@@ -443,13 +443,13 @@ export class OdinDevice {
 
       if (destination === FileTransferDestination.Phone)
       {
-        await this._emptySend();
+        await this._emptySend({ timeout: 500 });
         await this.sendPacket(new EndPhoneFileTransferPacket(sequenceEffectiveByteCount, 0, deviceType, fileIdentifier, isLastSequence));
-        await this._emptySend();
+        await this._emptySend({ timeout: 500 });
       } else {
-        await this._emptySend();
+        await this._emptySend({ timeout: 500 });
         await this.sendPacket(new EndModemFileTransferPacket(sequenceEffectiveByteCount, 0, deviceType, isLastSequence));
-        await this._emptySend();
+        await this._emptySend({ timeout: 500 });
       }
     }
 
@@ -498,7 +498,7 @@ export class OdinDevice {
   async _emptySend (options?: EmptyPacketOptions) {
     try {
       await timeoutPromise(
-        this.usbDevice.transferOut(this.inEndpointNum, new Uint8Array()),
+        this.usbDevice.transferOut(this.outEndpointNum, new Uint8Array()),
         '[device] device did not respond to empty send, continuing...',
         options?.timeout ?? this.deviceOptions.timeout
       );
