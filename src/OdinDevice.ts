@@ -99,20 +99,39 @@ export class OdinDevice {
         );
       }
 
-      const interfaceNum = this.usbDevice.configuration?.interfaces.find(iface => 
-        iface.alternate.endpoints.length === 2 &&
-        iface.alternate.interfaceClass === USB_CLASS_CDC_DATA
-      )?.interfaceNumber ?? -1;
+      let interfaceNum = -1;
+      let altInterfaceNum = -1;
 
-      if (this.usbDevice.configuration == null || interfaceNum < 0) {
+      if (!this.usbDevice.configuration) {
         throw new Error('Unable to select the proper configuration');
       }
 
-      const usbInterface = this.usbDevice.configuration.interfaces[interfaceNum];
-      const altEndpoints = usbInterface.alternate.endpoints;
+      const usbConfiguration = this.usbDevice.configuration;
 
-      this.outEndpointNum = altEndpoints.find(endpoint => endpoint.direction === 'out')?.endpointNumber || -1;
-      this.inEndpointNum = altEndpoints.find(endpoint => endpoint.direction === 'in')?.endpointNumber || -1;
+      for (const interfaceIndex in usbConfiguration.interfaces) {
+        const usbInterface = usbConfiguration.interfaces[interfaceIndex];
+
+        for (const altIndex in usbInterface.alternates) {
+          const altInterface = usbInterface.alternates[altIndex];
+
+          const outEndpoint = altInterface.endpoints.find(endpoint => endpoint.direction === 'out')?.endpointNumber || -1;
+          const inEndpoint = altInterface.endpoints.find(endpoint => endpoint.direction === 'in')?.endpointNumber || -1;
+  
+          if (altInterface.endpoints.length === 2 && altInterface.interfaceClass === USB_CLASS_CDC_DATA &&
+            outEndpoint != -1 && inEndpoint != -1)
+          {
+            altInterfaceNum = Number(altIndex);
+            this.outEndpointNum = outEndpoint;
+            this.inEndpointNum = inEndpoint;
+            break;
+          }
+        }
+
+        if (altInterfaceNum !== -1) {
+          interfaceNum = Number(interfaceIndex);
+          break;
+        }
+      }
 
       if (this.outEndpointNum === -1 || this.inEndpointNum === -1) {
         throw new Error('Unable to locate the bulk command endpoints');
@@ -123,9 +142,8 @@ export class OdinDevice {
         '[initialize] unable to claim device interface',
         this.deviceOptions.timeout
       );
-      // TODO: use proper alt interface (should not be hardcoded to 0)
-      const altInterface = 0;
-      if (altInterface !== 0) {
+      
+      if (altInterfaceNum !== 0) {
         await timeoutPromise(
           this.usbDevice.selectAlternateInterface(interfaceNum, 0),
           '[initialize] unable to select device\'s ODIN interface',
@@ -476,7 +494,7 @@ export class OdinDevice {
     packet.unpack();
     return packet;
   }
-    
+
   async _emptySend (options?: EmptyPacketOptions) {
     try {
       await timeoutPromise(
