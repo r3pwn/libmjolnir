@@ -260,7 +260,8 @@ export class OdinDevice {
    * Tells the device the size of the payload you wish to send it
    */
   async setFlashTotalSize (totalSize: number) {
-    await this.sendPacket(new TotalBytesPacket(totalSize))
+    await this.sendPacket(new TotalBytesPacket(totalSize));
+    await this._emptySend({ timeout: 500 });
     
     const fileTotalSizeResponse = await this.receivePacket(SessionSetupResponse);
     
