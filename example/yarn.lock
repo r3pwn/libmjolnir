@@ -3,9 +3,9 @@
 
 
 "@babel/parser@^7.20.15", "@babel/parser@^7.21.3":
-  version "7.22.14"
-  resolved "https://registry.yarnpkg.com/@babel/parser/-/parser-7.22.14.tgz#c7de58e8de106e88efca42ce17f0033209dfd245"
-  integrity sha512-1KucTHgOvaw/LzCVrEOAyXkr9rQlp0A1HiHRYnSUE9dmb8PvPW7o5sscg+5169r54n3vGlbx6GevTE/Iw/P3AQ==
+  version "7.22.15"
+  resolved "https://registry.yarnpkg.com/@babel/parser/-/parser-7.22.15.tgz#d34592bfe288a32e741aa0663dbc4829fcd55160"
+  integrity sha512-RWmQ/sklUN9BvGGpCDgSubhHWfAx24XDTDObup4ffvxaYsptOg2P3KG0j+1eWKLxpkX0j0uHxmpq2Z1SP/VhxA==
 
 "@esbuild/android-arm64@0.18.20":
   version "0.18.20"
@@ -326,9 +326,9 @@ he@^1.2.0:
   integrity sha512-F/1DnUGPopORZi0ni+CvrCgHQ5FyEAHRLSApuYWMmrbSwoN2Mn/7k+Gl38gJnR7yyDZk6WLXwiGod1JOWNDKGw==
 
 libmjolnir@latest:
-  version "0.5.1"
-  resolved "https://registry.yarnpkg.com/libmjolnir/-/libmjolnir-0.5.1.tgz#54d93e66af4876f2c53510a377623121a0efa3fe"
-  integrity sha512-1s4K+IVR+i2OFSzN7AQYw94VWjxYl8QVww6cf9zs0qlSxvRvWtuKIC7m5mfb3IndaLyFIGuE9b0bmI51JtLhYw==
+  version "0.5.2"
+  resolved "https://registry.yarnpkg.com/libmjolnir/-/libmjolnir-0.5.2.tgz#b20c840135d15b88a3bcd17b0db6d0085825d5b0"
+  integrity sha512-aC5IuXTRbJAJeanQAdVeOEQqrmG3cmD4a27jmYpOsUx1CVR4C7qWhsJCJF6rMZbnAwK+B87oDhEmQngXaP12iw==
 
 lru-cache@^6.0.0:
   version "6.0.0"

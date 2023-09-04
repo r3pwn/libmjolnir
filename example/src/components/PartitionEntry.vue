@@ -1,10 +1,10 @@
 <script setup lang="ts">
-  import { ref } from 'vue';
+  import { PropType, ref } from 'vue';
   import { libpit } from 'libmjolnir';
 
   defineProps({
     entry: {
-      type: libpit.PitEntry,
+      type: Object as PropType<libpit.PitEntry>,
       required: true
     }
   });

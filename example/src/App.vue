@@ -7,7 +7,13 @@
   const devicePit = ref(undefined as libpit.PitData | undefined);
   const connectedDevice = ref({} as OdinDevice);
 
+  const verboseLogging = ref(true);
+  const defaultTimeout = ref(15000);
+  const resetOnInit = ref(false);
+
+
   async function setupDevice (device: OdinDevice) {
+    console.log(device.usbDevice);
     await device.initialize();
 
     connectedDevice.value = device;
@@ -24,7 +30,11 @@
   }
 
   function requestDeviceAccess () {
-    libmjolnir.requestDevice({ logging: true, timeout: 15000 })
+    libmjolnir.requestDevice({
+      logging: verboseLogging.value,
+      timeout: defaultTimeout.value,
+      resetOnInit: resetOnInit.value
+    })
       .then(setupDevice);
   }
 
@@ -38,10 +48,25 @@
 </script>
 
 <template>
+  <fieldset class="connection-options">
+    <legend>Connection options</legend>
+    <div>
+      <label>Verbose logging: </label>
+      <input type="checkbox" v-model="verboseLogging" />
+    </div>
+    <div>
+      <label>Packet timeout: </label>
+      <input type="number" v-model="defaultTimeout" />
+    </div>
+    <div>
+      <label>Reset on initialize: </label>
+      <input type="checkbox" v-model="resetOnInit" />
+    </div>
+  </fieldset>
   <button @click="requestDeviceAccess">Request device access</button>
   <p v-if="hasDevice">
     <p v-if="devicePit?.entries?.length">
-      <div>board type: {{ devicePit.pitName }}</div>
+      <div>board type: {{ devicePit.boardType }}</div>
       <button @click="rebootDevice">Reboot device</button>
       <template v-for="(entry, index) in devicePit.entries">
         <partition-entry
@@ -59,5 +84,12 @@
     html {
       color-scheme: dark;
     }
+  }
+
+  .connection-options {
+    display: flex;
+    flex-direction: column;
+    width: fit-content;
+    margin-bottom: 1rem;
   }
 </style>
