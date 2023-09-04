@@ -29,6 +29,8 @@ export type DeviceOptions = {
   logging: boolean;
   /** the number of milliseconds to time out after */
   timeout: number;
+  /** some OSes (like Ubuntu) have an issue with libusb that requires a reset call to be made on initialization */
+  resetOnInit: boolean;
 }
 
 type EmptyPacketOptions = {
@@ -39,7 +41,8 @@ const USB_CLASS_CDC_DATA = 0x0A;
 
 const DEFAULT_DEVICE_OPTIONS = {
   logging: false,
-  timeout: 5000
+  timeout: 5000,
+  resetOnInit: false
 } as DeviceOptions;
 
 export class OdinDevice {
@@ -120,11 +123,15 @@ export class OdinDevice {
         '[initialize] unable to claim device interface',
         this.deviceOptions.timeout
       );
-      await timeoutPromise(
-        this.usbDevice.selectAlternateInterface(interfaceNum, 0),
-        '[initialize] unable to select device\'s ODIN interface',
-        this.deviceOptions.timeout
-      );
+      // TODO: use proper alt interface (should not be hardcoded to 0)
+      const altInterface = 0;
+      if (altInterface !== 0) {
+        await timeoutPromise(
+          this.usbDevice.selectAlternateInterface(interfaceNum, 0),
+          '[initialize] unable to select device\'s ODIN interface',
+          this.deviceOptions.timeout
+        );
+      }
     } catch (errorMsg) {
       this.deviceOptions.logging && console.log(errorMsg);
       throw new Error('Unable to open and claim device');
@@ -140,6 +147,14 @@ export class OdinDevice {
     // Samsung are Norse mythology fans, I guess?
     const helloMsg = 'ODIN';
     const acknowledgeMsg = 'LOKE';
+
+    if (this.deviceOptions.resetOnInit) {
+      await timeoutPromise(
+        this.usbDevice.reset(),
+        '[handshake] unable to reset device',
+        this.deviceOptions.timeout
+      );
+    }
 
     const outResult = await timeoutPromise(
       this.usbDevice.transferOut(this.outEndpointNum, ByteArray.fromString(helloMsg)),
