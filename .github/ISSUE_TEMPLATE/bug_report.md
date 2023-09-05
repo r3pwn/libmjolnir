@@ -8,7 +8,7 @@ assignees: ''
 ---
 
 **Before continuing**
-Please check the (known issues)[https://github.com/r3pwn/libmjolnir/wiki/Known-issues] wiki page to ensure the issue isn't already resolved. Once that is done, please delete this section.
+Please check the [known issues](https://github.com/r3pwn/libmjolnir/wiki/Known-issues) wiki page to ensure the issue isn't already resolved. Once that is done, please delete this section.
 
 **Describe the bug**
 A clear and concise description of what the bug is.
