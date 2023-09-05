@@ -16,12 +16,16 @@ A WebUSB implementation of the Odin protocol, used for interfacing with Samsung 
 - Upload PIT
 
 ## Building
-`yarn # only needs to be run once, to install dependencies`
-`yarn build`
+```sh
+yarn # only needs to be run once, to install dependencies
+yarn build
+```
 
 ## Building the example project
-`cd example`
-`yarn dev --host`
+```sh
+cd example
+yarn dev --host
+```
 
 ## Unit tests
 `yarn test`
