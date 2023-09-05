@@ -2,7 +2,9 @@
 A WebUSB implementation of the Odin protocol, used for interfacing with Samsung devices in "Download mode"
 
 ## Status
-### Working
+### [Known issues](https://github.com/r3pwn/libmjolnir/wiki/Known-issues)
+
+### Working features
 - PIT parsing
 - Odin handshake
 - Download PIT
@@ -10,11 +12,16 @@ A WebUSB implementation of the Odin protocol, used for interfacing with Samsung 
 - Erase userdata
 - Flash partition
 
-### Planned
+### Planned features
 - Upload PIT
 
 ## Building
+`yarn # only needs to be run once, to install dependencies`
 `yarn build`
+
+## Building the example project
+`cd example`
+`yarn dev --host`
 
 ## Unit tests
 `yarn test`
