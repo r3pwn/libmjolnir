@@ -11,6 +11,14 @@ export const UsbConstants = {
   ]
 }
 
+export const EmptyTransferFlags = {
+  None: 0,
+  Before: 1,
+  After: 2,
+  Both: 3
+}
+
 export default {
-  UsbConstants
+  UsbConstants,
+  EmptyTransferFlags
 }
