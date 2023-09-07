@@ -2,6 +2,11 @@
 A WebUSB implementation of the Odin protocol, used for interfacing with Samsung devices in "Download mode"
 
 ## Status
+### Build status
+- [![Build Library](https://github.com/r3pwn/libmjolnir/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/r3pwn/libmjolnir/actions/workflows/build.yml)
+- [![Unit Tests](https://github.com/r3pwn/libmjolnir/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/r3pwn/libmjolnir/actions/workflows/unit-tests.yml)
+- [![Deploy to Github Pages](https://github.com/r3pwn/libmjolnir/actions/workflows/deploy.yml/badge.svg)](https://github.com/r3pwn/libmjolnir/actions/workflows/deploy.yml)
+
 ### [Known issues](https://github.com/r3pwn/libmjolnir/wiki/Known-issues)
 
 ### Working features
