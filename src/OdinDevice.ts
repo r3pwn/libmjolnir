@@ -464,7 +464,7 @@ export class OdinDevice {
     packet.pack();
 
     if (emptyTransferFlags & EmptyTransferFlags.Before) {
-      this._emptySend();
+      await this._emptySend();
     }
 
     this.deviceOptions.logging && console.log('sending', packet);
@@ -479,7 +479,7 @@ export class OdinDevice {
     });
 
     if (emptyTransferFlags & EmptyTransferFlags.After) {
-      this._emptySend();
+      await this._emptySend();
     }
 
     return sendResult;
@@ -487,7 +487,7 @@ export class OdinDevice {
 
   async receivePacket <T extends InboundPacket> (type: { new(): T }, timeout?: number, emptyTransferFlags = EmptyTransferFlags.None): Promise<T> {
     if (emptyTransferFlags & EmptyTransferFlags.Before) {
-      this._emptyReceive();
+      await this._emptyReceive();
     }
 
     const packet = new type();
@@ -512,7 +512,7 @@ export class OdinDevice {
     packet.unpack();
 
     if (emptyTransferFlags & EmptyTransferFlags.After) {
-      this._emptyReceive();
+      await this._emptyReceive();
     }
 
     return packet;
