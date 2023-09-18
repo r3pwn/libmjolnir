@@ -308,7 +308,7 @@ export class OdinDevice {
 
     for (let i = 0; i < transferCount; i++) {
       this.deviceOptions.logging && console.log(`getPitData: sending partial packet ${i+1} of ${transferCount}`);
-      await this.sendPacket(new DumpPartPitFilePacket(i));
+      await this.sendPacket(new DumpPartPitFilePacket(i), undefined, EmptyTransferFlags.None);
       
       const receivePitPartResponse = await this.receivePacket(ReceiveFilePartPacket);
 
@@ -455,9 +455,9 @@ export class OdinDevice {
           EmptyTransferFlags.Both
         );
       }
+      
+      await this.receivePacket(FileTransferResponse);
     }
-
-    await this.receivePacket(FileTransferResponse);
   }
 
   async sendPacket (packet: OutboundPacket, timeout?: number, emptyTransferFlags = EmptyTransferFlags.After) {

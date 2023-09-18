@@ -11,5 +11,6 @@ export class TotalBytesPacket extends SessionSetupPacket {
   pack () {
     super.pack();
     this.packInteger(SessionSetupPacket.dataSize, this.fileTotalSize);
+    this.packInteger(SessionSetupPacket.dataSize + 4, this.fileTotalSize >> 32);
   }
 }
