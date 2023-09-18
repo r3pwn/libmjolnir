@@ -1,6 +1,8 @@
 <script setup lang="ts">
   import { ref } from 'vue';
   import libmjolnir, { OdinDevice, libpit } from 'libmjolnir';
+  import { version as libmjolnirVersion } from 'libmjolnir/package.json';
+
   import PartitionEntry from './components/PartitionEntry.vue';
 
   const hasDevice = ref(false);
@@ -48,6 +50,7 @@
 </script>
 
 <template>
+  <div>libmjolnir version: {{ libmjolnirVersion }}</div>
   <fieldset class="connection-options">
     <legend>Connection options</legend>
     <div>
