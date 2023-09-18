@@ -29,6 +29,7 @@
 
     await device.beginSession();
     devicePit.value = await connectedDevice.value.getPitData();
+    await device.endSession();
   }
 
   function requestDeviceAccess () {
