@@ -1,6 +1,8 @@
 # libmjolnir
 A WebUSB implementation of the Odin protocol, used for interfacing with Samsung devices in "Download mode"
 
+> ⚠️ Note: This repository is no longer actively maintained. For improved compatibility and better support, please use [@lineageos-infra/libmjolnir](https://github.com/lineageos-infra/libmjolnir) instead.
+
 ## Status
 ### Build status
 - [![Build Library](https://github.com/r3pwn/libmjolnir/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/r3pwn/libmjolnir/actions/workflows/build.yml)
